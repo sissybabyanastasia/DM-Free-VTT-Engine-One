@@ -15,6 +15,7 @@ import { DungeonSidebar } from './components/DungeonSidebar';
 import { TacticalSidebar } from './components/TacticalSidebar';
 import { CombatLogPanel } from './components/CombatLogPanel';
 import { SchemaInspectorModal } from './components/SchemaInspectorModal';
+import { CharacterImportModal } from './components/CharacterImportModal';
 import { TownShopModal } from './components/TownShopModal';
 import { SessionManagerModal } from './components/SessionManagerModal';
 import { AuthModal } from './components/AuthModal';
@@ -35,6 +36,7 @@ export default function App() {
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isSessionsModalOpen, setIsSessionsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isCharacterImportModalOpen, setIsCharacterImportModalOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
   // Network State
@@ -261,6 +263,7 @@ export default function App() {
         onOpenShop={() => setIsShopOpen(true)}
         onOpenSessions={() => setIsSessionsModalOpen(true)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenCharacterImport={() => setIsCharacterImportModalOpen(true)}
         isSectorOpen={isSectorSidebarOpen}
         onToggleSector={() => setIsSectorSidebarOpen(!isSectorSidebarOpen)}
         isChronicleOpen={isChronicleSidebarOpen}
@@ -484,6 +487,16 @@ export default function App() {
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 
         user={user} 
+      />
+
+      <CharacterImportModal
+        isOpen={isCharacterImportModalOpen}
+        onClose={() => setIsCharacterImportModalOpen(false)}
+        user={user}
+        onCharacterImported={(data) => {
+          // For now, we just log it or you could add it to a party roster state
+          console.log("Imported character:", data);
+        }}
       />
     </div>
   );

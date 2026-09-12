@@ -16,7 +16,8 @@ import {
   FolderArchive,
   Trophy,
   Skull,
-  User
+  User,
+  Upload
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 
@@ -29,6 +30,7 @@ interface HeaderBarProps {
   onOpenShop: () => void;
   onOpenSessions: () => void;
   onOpenAuth: () => void;
+  onOpenCharacterImport: () => void;
   isSectorOpen: boolean;
   onToggleSector: () => void;
   isChronicleOpen: boolean;
@@ -46,6 +48,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onOpenShop,
   onOpenSessions,
   onOpenAuth,
+  onOpenCharacterImport,
   isSectorOpen,
   onToggleSector,
   isChronicleOpen,
@@ -153,6 +156,16 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         >
           <FolderArchive className="w-3.5 h-3.5 text-amber-400" />
           <span className="hidden sm:inline">Sessions</span>
+        </button>
+
+        {/* Character Import Button */}
+        <button
+          onClick={onOpenCharacterImport}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-purple-300 hover:text-purple-200 border border-purple-500/40 text-xs font-semibold cursor-pointer transition-all shadow-sm"
+          title="Import Character from JSON schema"
+        >
+          <Upload className="w-3.5 h-3.5 text-purple-400" />
+          <span className="hidden sm:inline">Import Hero</span>
         </button>
 
         {/* Party Gold Display */}
