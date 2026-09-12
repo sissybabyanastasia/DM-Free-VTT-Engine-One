@@ -15,7 +15,8 @@ import {
   SkipForward,
   UserCheck,
   DoorOpen,
-  Sparkles
+  Sparkles,
+  Scroll
 } from 'lucide-react';
 
 interface TurnManagementControllerProps {
@@ -325,7 +326,9 @@ export const TurnManagementController: React.FC<TurnManagementControllerProps> =
                     {item.type === 'chest' && <Key className="w-3 h-3 text-amber-300" />}
                     {item.type === 'potion' && <FlaskConical className="w-3 h-3 text-emerald-300" />}
                     {item.type === 'door' && <DoorOpen className="w-3 h-3 text-amber-300" />}
-                    <span>{item.type === 'chest' ? 'Open Chest' : item.type === 'potion' ? 'Drink Potion' : item.type === 'door' ? 'Enter Passage' : 'Interact'}</span>
+                    {item.type === 'stele' && <Scroll className="w-3 h-3 text-red-300" />}
+                    {item.type === 'rest_point' && <Flame className="w-3 h-3 text-orange-300" />}
+                    <span>{item.type === 'chest' ? 'Open Chest' : item.type === 'potion' ? 'Drink Potion' : item.type === 'door' ? 'Enter Passage' : item.type === 'stele' ? 'Read Stele' : item.type === 'rest_point' ? 'Rest at Shrine' : 'Interact'}</span>
                   </button>
                 ))
               ) : null}

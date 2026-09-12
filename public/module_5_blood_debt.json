@@ -1,0 +1,86 @@
+{
+  "id": "module_5_blood_debt",
+  "moduleNumber": 5,
+  "title": "Module 5: 《Blood Debt》",
+  "subtitle": "Multi-Session Solo Narrative Gauntlet of Choices & Consequence",
+  "tierDescription": "Branching Solo Narrative Campaign (Level 2-4 Champion)",
+  "recommendedLevel": "Solo Hero (Level 2-4)",
+  "description": "A multi-session narrative solo module divided into three acts: Act I 'The Ruins' (choice about survivors), Act II 'The Trail' (choice regarding the bandit leader), and Act III 'The Reckoning' (final boss identity morphs based on choices). Death halves gold earned this run and increases blood_debt by 1, while retaining all permanent upgrades and narrative items.",
+  "isSoloOnly": true,
+  "completionRewards": {
+    "voucherId": "voucher_blood_debt_repaid",
+    "voucherName": "Voucher: Debt of Crimson Absolution",
+    "gold": 400
+  },
+  "narrativeActs": [
+    {
+      "act": 1,
+      "title": "The Ruins",
+      "rooms": ["m5_room_1", "m5_room_2"],
+      "choice": {
+        "event": "Survivors' Crossroads",
+        "options": [
+          { "id": "aid", "text": "Aid the Survivors", "flag": "act1_survivors_aided" },
+          { "id": "plunder", "text": "Plunder & Purge (+80 GP)", "flag": "act1_survivors_plundered" },
+          { "id": "abandon", "text": "Abandon to Mists", "flag": "act1_survivors_abandoned" }
+        ]
+      }
+    },
+    {
+      "act": 2,
+      "title": "The Trail",
+      "rooms": ["m5_room_3", "m5_room_4"],
+      "choice": {
+        "event": "The Outlaw's Parley",
+        "options": [
+          { "id": "execute", "text": "Execute Bandit Leader Malakar", "flag": "act2_leader_executed" },
+          { "id": "escape", "text": "Accept Bribe & Let Him Escape (+120 GP)", "flag": "act2_leader_escaped" },
+          { "id": "subdue", "text": "Bind with Blood Oath", "flag": "act2_leader_spared" }
+        ]
+      }
+    },
+    {
+      "act": 3,
+      "title": "The Reckoning",
+      "rooms": ["m5_room_5", "m5_room_6"],
+      "bossConfrontation": {
+        "rule": "Identity dynamically forged from Act I & Act II narrative flags",
+        "permutations": [
+          {
+            "condition": "act2_leader_escaped",
+            "bossName": "Malakar, Warlord of the Red Vengeance",
+            "theme": "The bandit leader returns leading an enraged warband."
+          },
+          {
+            "condition": "act1_survivors_plundered && act2_leader_executed",
+            "bossName": "The Vengeful Wraith of the Unburied",
+            "theme": "Spirits of the murdered innocents coalesce into a necrotic avenger."
+          },
+          {
+            "condition": "act1_survivors_aided && act2_leader_executed",
+            "bossName": "Commander Kaelen, Grand Arbiter of the Debt",
+            "theme": "An honorable judicial martial trial settling the crimson debt."
+          },
+          {
+            "condition": "default",
+            "bossName": "The Arbiter of the Blood Debt",
+            "theme": "The ancient construct guardian of the eternal scales."
+          }
+        ]
+      }
+    }
+  ],
+  "deathPenaltyRule": {
+    "goldPenalty": "gold_earned_halved",
+    "bloodDebt": "increment_by_1",
+    "retention": ["permanent_upgrades", "memory_items", "narrative_flags"]
+  },
+  "environmentalSummary": {
+    "hazardName": "Crumbling Mountain Scree",
+    "hazardRule": "Unstable footing deals 1d6 bludgeoning damage (DC 12 DEX save).",
+    "trapName": "Barbed Wire & Caltrop Snare",
+    "trapRule": "Hidden pressure wire deals 2d6 piercing and immobilizes (DC 12 Perception, DC 13 Thievery).",
+    "bossMechanicName": "Dynamic Narrative Boss Metamorphosis",
+    "bossMechanicRule": "The boss identity, abilities, and dialogue morph directly based on choices in Acts I & II."
+  }
+}

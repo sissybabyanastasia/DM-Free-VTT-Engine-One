@@ -6,7 +6,20 @@
       "type": "object",
       "properties": {
         "email": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string" },
+        "blood_debt": { "type": "integer", "default": 0 },
+        "narrative_flags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "permanent_upgrades": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "memory_items": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       },
       "required": ["email", "createdAt"]
     },

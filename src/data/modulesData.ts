@@ -1573,7 +1573,7 @@ export const MODULE_4_ROOMS: RoomDataBlock[] = [
     origin: { x: 6, y: 0 },
     width: 7,
     height: 6,
-    tiles: generateRoomTiles('m4_room_2', 6, 0, 7, 6, [{ x: 12, y: 3 }]),
+    tiles: generateRoomTiles('m4_room_2', 6, 0, 7, 6, [{ x: 6, y: 3 }, { x: 12, y: 3 }]),
     edgeCoordinates: [
       {
         id: 'edge_m4_r2_to_r3',
@@ -1648,7 +1648,7 @@ export const MODULE_4_ROOMS: RoomDataBlock[] = [
     origin: { x: 13, y: 0 },
     width: 8,
     height: 5,
-    tiles: generateRoomTiles('m4_room_3', 13, 0, 8, 5, [{ x: 20, y: 2 }]),
+    tiles: generateRoomTiles('m4_room_3', 13, 0, 8, 5, [{ x: 13, y: 3 }, { x: 20, y: 2 }]),
     edgeCoordinates: [
       {
         id: 'edge_m4_r3_to_r4',
@@ -1738,7 +1738,7 @@ export const MODULE_4_ROOMS: RoomDataBlock[] = [
     origin: { x: 21, y: 0 },
     width: 7,
     height: 6,
-    tiles: generateRoomTiles('m4_room_4', 21, 0, 7, 6, [{ x: 27, y: 3 }]),
+    tiles: generateRoomTiles('m4_room_4', 21, 0, 7, 6, [{ x: 21, y: 2 }, { x: 27, y: 3 }]),
     edgeCoordinates: [
       {
         id: 'edge_m4_r4_to_r5',
@@ -1801,7 +1801,7 @@ export const MODULE_4_ROOMS: RoomDataBlock[] = [
     origin: { x: 28, y: 0 },
     width: 6,
     height: 6,
-    tiles: generateRoomTiles('m4_room_5', 28, 0, 6, 6, [{ x: 33, y: 3 }]),
+    tiles: generateRoomTiles('m4_room_5', 28, 0, 6, 6, [{ x: 28, y: 3 }, { x: 33, y: 3 }]),
     edgeCoordinates: [
       {
         id: 'edge_m4_r5_to_r6',
@@ -1837,7 +1837,7 @@ export const MODULE_4_ROOMS: RoomDataBlock[] = [
     origin: { x: 34, y: 0 },
     width: 8,
     height: 8,
-    tiles: generateRoomTiles('m4_room_6', 34, 0, 8, 8, []),
+    tiles: generateRoomTiles('m4_room_6', 34, 0, 8, 8, [{ x: 34, y: 3 }]),
     edgeCoordinates: [],
     hazards: [],
     traps: [],
@@ -1942,9 +1942,564 @@ export const MODULE_4_SOLO_CRUCIBLE: ModulePackage = {
   }
 };
 
+// -------------------------------------------------------------
+// MODULE 5: 《BLOOD DEBT》 MULTI-SESSION NARRATIVE SOLO MODULE
+// -------------------------------------------------------------
+// Act I: The Ruins (Rooms 1 & 2 - Choice about desperate survivors)
+// Act II: The Trail (Rooms 3 & 4 - Choice to execute or let bandit leader escape)
+// Act III: The Reckoning (Rooms 5 & 6 - Final boss identity changes based on Act I & II choices)
+
+export const MODULE_5_ROOMS: RoomDataBlock[] = [
+  // --- ACT I: THE RUINS ---
+  {
+    id: 'm5_room_1',
+    roomIndex: 1,
+    title: 'Act I: The Ashen Gatehouse',
+    theme: 'Ruined Fortress Antechamber',
+    origin: { x: 0, y: 0 },
+    width: 6,
+    height: 6,
+    tiles: generateRoomTiles('m5_room_1', 0, 0, 6, 6, [{ x: 5, y: 2 }]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m5_r1_to_r2',
+        type: 'edge_coordinate',
+        coordinate: { x: 5, y: 2 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 2,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'Crumbling limestone corridor opens into the ruined hospice...'
+      }
+    ],
+    monsters: [
+      {
+        id: 'm5_ghoul_1',
+        name: 'Ashen Ghoul',
+        monsterType: 'undead',
+        hp: 16,
+        maxHp: 16,
+        ac: 12,
+        speed: 4,
+        position: { x: 3, y: 1 },
+        isAlive: true,
+        ai: {
+          behaviorType: 'melee_chase',
+          targetingRule: 'nearest',
+          preferredRange: 1,
+          actions: [
+            { triggerCondition: 'always', actionType: 'move', moveDistance: 4 },
+            { triggerCondition: 'in_attack_range', actionType: 'attack', attackRange: 1, damageDice: '1d6+2', hitBonus: 4 }
+          ]
+        },
+        attacks: [
+          { id: 'atk_ghoul_claws', name: 'Corpse Claws', range: 1, attackBonus: 4, damageDice: '1d6+2', damageType: 'slashing', description: 'Rotting filth-crusted claws.' }
+        ],
+        specialAbilities: ['Paralyzing Chill'],
+        statusEffects: [],
+        threatLevel: 2,
+        experienceReward: 120
+      }
+    ],
+    hazards: [],
+    traps: [],
+    chests: [],
+    warningStele: {
+      coordinate: { x: 2, y: 2 },
+      title: 'Stele of the Blood Ledger',
+      message: 'THE BLOOD DEBT LAW: Every demise incurred inside this gauntlet increases your blood_debt. If you perish, gold earned this run is halved, but all permanent upgrades and narrative memory items are etched upon your soul and retained forever. Choose with purpose.'
+    },
+    isExplored: true,
+    flavorText: 'Charred timber and shattered masonry litter the gates. A carved stele stands warning of the inescapable blood debt.',
+    isBossRoom: false
+  },
+  {
+    id: 'm5_room_2',
+    roomIndex: 2,
+    title: "Act I: Survivors' Crossroads",
+    theme: 'Ruined Hospice of the Fallen',
+    origin: { x: 6, y: 0 },
+    width: 7,
+    height: 6,
+    tiles: generateRoomTiles('m5_room_2', 6, 0, 7, 6, [
+      { x: 6, y: 2 }, // Entrance from room 1
+      { x: 12, y: 3 } // Exit to room 3
+    ]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m5_r2_to_r3',
+        type: 'edge_coordinate',
+        coordinate: { x: 12, y: 3 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 3,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'A steep mountain scree trail ascends into the Whispering Defile...'
+      }
+    ],
+    monsters: [
+      {
+        id: 'm5_ruin_scavenger',
+        name: 'Feral Ruin Scavenger',
+        monsterType: 'humanoid',
+        hp: 18,
+        maxHp: 18,
+        ac: 13,
+        speed: 5,
+        position: { x: 10, y: 4 },
+        isAlive: true,
+        ai: {
+          behaviorType: 'patrol_sentinel',
+          targetingRule: 'nearest',
+          preferredRange: 1,
+          actions: [
+            { triggerCondition: 'always', actionType: 'move', moveDistance: 5 },
+            { triggerCondition: 'in_attack_range', actionType: 'attack', attackRange: 1, damageDice: '1d6+2', hitBonus: 4 }
+          ]
+        },
+        attacks: [
+          { id: 'atk_scavenger_hook', name: 'Barbed Meat Hook', range: 1, attackBonus: 4, damageDice: '1d6+2', damageType: 'piercing', description: 'Rusty iron hook designed for plundering.' }
+        ],
+        specialAbilities: [],
+        statusEffects: [],
+        threatLevel: 2,
+        experienceReward: 140
+      }
+    ],
+    hazards: [],
+    traps: [],
+    chests: [
+      {
+        id: 'chest_m5_r2',
+        coordinate: { x: 11, y: 1 },
+        isLocked: false,
+        isOpen: false,
+        trapped: false,
+        goldReward: 60,
+        loot: [
+          { id: 'pot_heal_r2', name: 'Potion of Healing', type: 'consumable', rarity: 'common', description: 'Restores 2d4+2 HP.', effect: 'heal_2d4_2', quantity: 1 }
+        ]
+      }
+    ],
+    choiceEvent: {
+      id: 'choice_act1_survivors',
+      actNumber: 1,
+      actTitle: 'Act I: The Ruins',
+      title: 'The Crossroads of Despair: Wounded Survivors',
+      speaker: 'Elder Moira & Fleeing Townsfolk',
+      portrait: 'Heart',
+      situationText: 'Huddled beneath a cracked roof, a band of wounded villagers and a weary herbalist bandage their kin. "Mercy, traveler! The bandit raiders burned our sanctuary. We have neither rations nor medicine to survive the night. What will you do with us?"',
+      options: [
+        {
+          id: 'opt_act1_aid',
+          text: 'Aid the Survivors (Share supplies & guide them to safety)',
+          description: 'Bandage their wounds, provide sustenance, and point them to the frontier redoubt.',
+          flagToSet: 'act1_survivors_aided',
+          consequenceSummary: 'The villagers survive and spread tales of your nobility. In Act III, Commander Kaelen will recognize your honor.'
+        },
+        {
+          id: 'opt_act1_plunder',
+          text: 'Plunder & Purge (Seize their hidden emergency gold +80 GP)',
+          description: 'Cold, mercenary resolve. Take their 80 GP pouch and leave no witnesses behind.',
+          flagToSet: 'act1_survivors_plundered',
+          goldChange: 80,
+          consequenceSummary: 'You gain +80 GP. Their agonized souls coalesce in Act III into the terrifying Vengeful Wraith!'
+        },
+        {
+          id: 'opt_act1_abandon',
+          text: 'Abandon them to the mists (Indifference)',
+          description: 'Turn a blind eye. Survival in this realm belongs only to the strong.',
+          flagToSet: 'act1_survivors_abandoned',
+          consequenceSummary: 'Left alone, their dying echoes summon the Corrupted Hollow Warden in Act III.'
+        }
+      ],
+      isResolved: false
+    },
+    interactableObjects: [
+      {
+        id: 'obj_survivors_crossroads',
+        type: 'choice_event',
+        name: 'Wounded Survivors',
+        coordinate: { x: 9, y: 2 },
+        isUsed: false,
+        description: 'A desperate family huddled beside a smoldering fire. Interact to decide their fate.'
+      }
+    ],
+    isExplored: false,
+    flavorText: 'A draft of cold wind sweeps through shattered stained glass. In the corner, huddled survivors look up at you with trembling hope or terror.',
+    isBossRoom: false
+  },
+
+  // --- ACT II: THE TRAIL ---
+  {
+    id: 'm5_room_3',
+    roomIndex: 3,
+    title: 'Act II: The Whispering Defile',
+    theme: 'Fog-Shrouded Mountain Ravine',
+    origin: { x: 13, y: 1 },
+    width: 8,
+    height: 5,
+    tiles: generateRoomTiles('m5_room_3', 13, 1, 8, 5, [
+      { x: 13, y: 3 }, // Entrance from room 2
+      { x: 20, y: 3 }  // Exit to room 4
+    ]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m5_r3_to_r4',
+        type: 'edge_coordinate',
+        coordinate: { x: 20, y: 3 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 4,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'Heavy iron-reinforced barricades guard the bandit leader’s redoubt...'
+      }
+    ],
+    monsters: [
+      {
+        id: 'm5_trail_archer_1',
+        name: 'Bandit Trail Archer',
+        monsterType: 'humanoid',
+        hp: 16,
+        maxHp: 16,
+        ac: 13,
+        speed: 5,
+        position: { x: 18, y: 2 },
+        isAlive: true,
+        ai: {
+          behaviorType: 'ranged_kite',
+          targetingRule: 'lowest_ac',
+          preferredRange: 4,
+          actions: [
+            { triggerCondition: 'always', actionType: 'move', moveDistance: 5 },
+            { triggerCondition: 'in_attack_range', actionType: 'attack', attackRange: 5, damageDice: '1d8+2', hitBonus: 4 }
+          ]
+        },
+        attacks: [
+          { id: 'atk_archer_bow', name: 'Yew Longbow', range: 5, attackBonus: 4, damageDice: '1d8+2', damageType: 'piercing', description: 'Jagged steel arrow whistling across the fog.' }
+        ],
+        specialAbilities: [],
+        statusEffects: [],
+        threatLevel: 2,
+        experienceReward: 130
+      }
+    ],
+    hazards: [
+      {
+        id: 'hazard_m5_scree',
+        name: 'Crumbling Scree Rockfall',
+        type: 'environmental',
+        affectedCoordinates: [{ x: 16, y: 2 }, { x: 16, y: 3 }],
+        isActive: true,
+        damagePerTurn: '1d6',
+        savingThrowDC: 12,
+        savingThrowType: 'dex',
+        description: 'Unstable gravel cliffside prone to sudden rock slides.'
+      }
+    ],
+    traps: [
+      {
+        id: 'trap_m5_caltrop',
+        coordinate: { x: 17, y: 3 },
+        isDisarmed: false,
+        isTriggered: false,
+        perceptionDC: 12,
+        disarmDC: 13,
+        damageDice: '2d6',
+        effectDescription: 'Concealed barbed wire and caltrops dealing 2d6 piercing damage.',
+        detected: false
+      }
+    ],
+    chests: [],
+    isExplored: false,
+    flavorText: 'Jagged stone teeth rise into the mist. The wind here sounds like hushed voices whispering warnings of ambush.',
+    isBossRoom: false
+  },
+  {
+    id: 'm5_room_4',
+    roomIndex: 4,
+    title: "Act II: The Outlaw's Parley",
+    theme: 'Bandit Cliffside Redoubt',
+    origin: { x: 21, y: 0 },
+    width: 7,
+    height: 7,
+    tiles: generateRoomTiles('m5_room_4', 21, 0, 7, 7, [
+      { x: 21, y: 3 }, // Entrance from room 3
+      { x: 27, y: 3 }  // Exit to room 5
+    ]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m5_r4_to_r5',
+        type: 'edge_coordinate',
+        coordinate: { x: 27, y: 3 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 5,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'Ascend the stone stairs toward the high Sanctuary of the Scales...'
+      }
+    ],
+    monsters: [
+      {
+        id: 'm5_bandit_enforcer',
+        name: 'Ironclad Bandit Enforcer',
+        monsterType: 'humanoid',
+        hp: 24,
+        maxHp: 24,
+        ac: 14,
+        speed: 4,
+        position: { x: 24, y: 2 },
+        isAlive: true,
+        ai: {
+          behaviorType: 'melee_chase',
+          targetingRule: 'nearest',
+          preferredRange: 1,
+          actions: [
+            { triggerCondition: 'always', actionType: 'move', moveDistance: 4 },
+            { triggerCondition: 'in_attack_range', actionType: 'attack', attackRange: 1, damageDice: '1d10+3', hitBonus: 5 }
+          ]
+        },
+        attacks: [
+          { id: 'atk_enforcer_axe', name: 'Battleaxe of Ruin', range: 1, attackBonus: 5, damageDice: '1d10+3', damageType: 'slashing', description: 'Heavy double-bitted axe.' }
+        ],
+        specialAbilities: ['Shield Bash'],
+        statusEffects: [],
+        threatLevel: 3,
+        experienceReward: 200
+      }
+    ],
+    hazards: [],
+    traps: [],
+    chests: [
+      {
+        id: 'chest_m5_r4',
+        coordinate: { x: 25, y: 5 },
+        isLocked: false,
+        isOpen: false,
+        trapped: false,
+        goldReward: 90,
+        loot: [
+          { id: 'elixir_haste_r4', name: 'Elixir of Swift Haste', type: 'consumable', rarity: 'common', description: 'Restores +6 movement.', quantity: 1 }
+        ]
+      }
+    ],
+    choiceEvent: {
+      id: 'choice_act2_bandit',
+      actNumber: 2,
+      actTitle: 'Act II: The Trail',
+      title: "The Bandit Leader's Parley",
+      speaker: 'Malakar the Flayed',
+      portrait: 'Skull',
+      situationText: 'Cornered against a sheer basalt precipice, Malakar spits blood and lowers his dual scythe-blades. "Hold, champion! You fight like an archdemon. I hold a chest of 120 Guild gold taken from the road caravans. Look away, let me slip into the mist, and the gold is yours. Cross me, or execute me, and blood will drown this mountain."',
+      options: [
+        {
+          id: 'opt_act2_execute',
+          text: 'Execute Malakar (No mercy for cutthroats)',
+          description: 'Slay the bandit leader with swift, unyielding justice.',
+          flagToSet: 'act2_leader_executed',
+          consequenceSummary: 'Malakar is slain. The mountain syndicate is broken, directing you to face the legal trial of the High Court in Act III.'
+        },
+        {
+          id: 'opt_act2_escape',
+          text: 'Accept Bribe & Let Him Flee (+120 GP)',
+          description: 'Take his 120 GP bounty pouch and let him vanish down the mountain trail.',
+          flagToSet: 'act2_leader_escaped',
+          goldChange: 120,
+          consequenceSummary: 'You gain +120 GP, but Malakar rallies the surviving raiders and ambushes you as Warlord of the Red Vengeance in Act III!'
+        },
+        {
+          id: 'opt_act2_spared',
+          text: 'Subdue with a Blood Oath (Enforce servitude)',
+          description: 'Mark him with a crimson brand and force him to surrender his weapon.',
+          flagToSet: 'act2_leader_spared',
+          consequenceSummary: 'Malakar flees disgraced. The Arbiter in Act III will acknowledge your discipline.'
+        }
+      ],
+      isResolved: false
+    },
+    interactableObjects: [
+      {
+        id: 'obj_bandit_leader_parley',
+        type: 'choice_event',
+        name: 'Malakar the Flayed',
+        coordinate: { x: 25, y: 3 },
+        isUsed: false,
+        description: 'The wounded outlaw leader cornered at swordpoint. Interact to seal his fate.'
+      }
+    ],
+    isExplored: false,
+    flavorText: 'Campfires flicker in the outlaw stronghold. Malakar stands with his back to the drop, waiting for your verdict.',
+    isBossRoom: false
+  },
+
+  // --- ACT III: THE RECKONING ---
+  {
+    id: 'm5_room_5',
+    roomIndex: 5,
+    title: 'Act III: Sanctuary of the Scales',
+    theme: 'Ancient Alabaster Temple of Justice',
+    origin: { x: 28, y: 1 },
+    width: 6,
+    height: 5,
+    tiles: generateRoomTiles('m5_room_5', 28, 1, 6, 5, [
+      { x: 28, y: 3 }, // Entrance from room 4
+      { x: 33, y: 3 }  // Exit to room 6
+    ]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m5_r5_to_r6',
+        type: 'edge_coordinate',
+        coordinate: { x: 33, y: 3 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 6,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'The massive bronze Double Doors of Judgment groan open...'
+      }
+    ],
+    monsters: [],
+    hazards: [],
+    traps: [],
+    chests: [],
+    restPoint: {
+      id: 'rest_point_m5_altar',
+      coordinate: { x: 30, y: 2 },
+      name: 'Altar of the Crimson Scales',
+      isUsed: false,
+      hpRestore: 16
+    },
+    warningStele: {
+      coordinate: { x: 31, y: 3 },
+      title: 'Tome of the Converging Ledger',
+      message: 'THE RECKONING AWAITS: In the hall beyond, the entity you face is forged directly from your deeds. Those who shed innocent blood meet their victims in fury; those who sold justice for gold face the traitor reborn. Pray your ledger is balanced.'
+    },
+    isExplored: false,
+    flavorText: 'A hushed sanctuary bathed in crystalline light. Bloodstones glow upon an altar of balance, offering restorative peace before the trial of reckoning.',
+    isBossRoom: false
+  },
+  {
+    id: 'm5_room_6',
+    roomIndex: 6,
+    title: 'Act III: The Hall of Retribution',
+    theme: 'Grand Colosseum of the Blood Court',
+    origin: { x: 34, y: 0 },
+    width: 9,
+    height: 7,
+    tiles: generateRoomTiles('m5_room_6', 34, 0, 9, 7, [
+      { x: 34, y: 3 } // Entrance from room 5
+    ]),
+    edgeCoordinates: [],
+    monsters: [
+      // Base template - dynamically transformed in gameEngine based on narrative flags!
+      {
+        id: 'm5_boss_reckoning',
+        name: 'The Arbiter of the Blood Debt',
+        monsterType: 'construct',
+        hp: 44,
+        maxHp: 44,
+        ac: 15,
+        speed: 5,
+        position: { x: 39, y: 3 },
+        isAlive: true,
+        isBoss: true,
+        ai: {
+          behaviorType: 'boss_phased',
+          targetingRule: 'nearest',
+          preferredRange: 1,
+          actions: [
+            { triggerCondition: 'always', actionType: 'move', moveDistance: 5 },
+            { triggerCondition: 'in_attack_range', actionType: 'attack', attackRange: 1, damageDice: '1d10+4', hitBonus: 6 }
+          ]
+        },
+        attacks: [
+          { id: 'atk_reckoning_flail', name: 'Flail of Atonement', range: 1, attackBonus: 6, damageDice: '1d10+4', damageType: 'bludgeoning', description: 'Massive spiked flail swinging with gravitational force.' },
+          { id: 'atk_reckoning_cleave', name: 'Execution Sweep', range: 1, attackBonus: 6, damageDice: '1d8+1d6+4', damageType: 'force', description: 'Sweeping arc cleaving through armor and spirit.' }
+        ],
+        specialAbilities: ['Aura of Retribution', 'Phase 2: Enraged Ledger'],
+        statusEffects: [],
+        threatLevel: 4,
+        experienceReward: 500
+      }
+    ],
+    hazards: [],
+    traps: [],
+    chests: [
+      {
+        id: 'chest_m5_boss_spoils',
+        coordinate: { x: 41, y: 1 },
+        isLocked: false,
+        isOpen: false,
+        trapped: false,
+        goldReward: 250,
+        loot: [
+          { id: 'voucher_blood_debt_repaid', name: 'Voucher: Debt of Crimson Absolution', type: 'relic', rarity: 'legendary', description: 'Conquest voucher proving complete repayment of the Blood Debt.', quantity: 1 }
+        ]
+      }
+    ],
+    bossEncounter: {
+      bossName: 'The Arbiter of the Blood Debt',
+      distinctCombatMechanic: 'Dynamic Boss Metamorphosis (Identity changes based on Act I & II choices)',
+      phases: [
+        {
+          phaseNumber: 1,
+          hpThresholdPercentage: 100,
+          mechanicName: 'Phase 1: Aegis of the Unpaid Ledger',
+          description: 'The boss pulses with judicial wards, counter-striking melee attackers with 1d4 force damage.'
+        },
+        {
+          phaseNumber: 2,
+          hpThresholdPercentage: 50,
+          mechanicName: 'Phase 2: Execution Protocol',
+          description: 'Below 50% HP, the boss channels dark fury, dealing +1d6 extra damage on all successful strikes!'
+        }
+      ]
+    },
+    isExplored: false,
+    flavorText: 'An imposing amphitheater lined with towering obsidian statutes holding scales of justice. The champion of reckoning awaits in the center ring.',
+    isBossRoom: true
+  }
+];
+
+export const MODULE_5_BLOOD_DEBT: ModulePackage = {
+  id: 'module_5_blood_debt',
+  moduleNumber: 5,
+  title: 'Module 5: 《Blood Debt》',
+  subtitle: 'Multi-Session Solo Narrative Gauntlet of Choices & Consequence',
+  tierDescription: 'Branching Solo Narrative Campaign (Level 2-4 Champion)',
+  recommendedLevel: 'Solo Hero (Level 2-4)',
+  description: 'A multi-session narrative solo module divided into three acts: Act I "The Ruins" (choice about survivors), Act II "The Trail" (choice regarding the bandit leader), and Act III "The Reckoning" (final boss identity morphs based on choices). Death halves gold earned this run and increases blood_debt by 1, while retaining all permanent upgrades and narrative items.',
+  isSoloOnly: true,
+  completionRewards: {
+    voucherId: 'voucher_blood_debt_repaid',
+    voucherName: 'Voucher: Debt of Crimson Absolution',
+    gold: 400
+  },
+  rooms: MODULE_5_ROOMS,
+  lootTable: [
+    {
+      id: 'voucher_blood_debt_repaid',
+      name: 'Voucher: Debt of Crimson Absolution',
+      type: 'relic',
+      rarity: 'legendary',
+      description: 'Official seal of absolution granted upon conquering the final boss of 《Blood Debt》. Unlocks ultimate status at the Town Outfitter.',
+      quantity: 1
+    }
+  ],
+  environmentalSummary: {
+    hazardName: 'Crumbling Mountain Scree',
+    hazardRule: 'Unstable footing deals 1d6 bludgeoning damage (DC 12 DEX save).',
+    trapName: 'Barbed Wire & Caltrop Snare',
+    trapRule: 'Hidden pressure wire deals 2d6 piercing and immobilizes (DC 12 Perception, DC 13 Thievery).',
+    bossMechanicName: 'Dynamic Narrative Boss Metamorphosis',
+    bossMechanicRule: 'The boss identity (Warlord Malakar, Vengeful Wraith, Grand Inquisitor, or Arbiter) and attack profile are dynamically shaped by your choices in Acts I & II.'
+  }
+};
+
 export const ALL_MODULES = [
   MODULE_1_CORE_SET,
   MODULE_2_ADVANCED_SET,
   MODULE_3_EPIC_EXPANSION,
-  MODULE_4_SOLO_CRUCIBLE
+  MODULE_4_SOLO_CRUCIBLE,
+  MODULE_5_BLOOD_DEBT
 ];
+

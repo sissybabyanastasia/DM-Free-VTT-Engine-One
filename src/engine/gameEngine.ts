@@ -17,7 +17,9 @@ import {
   TurnPrompt,
   HoundEventState,
   ShopItem,
-  PrisonCellInstance
+  PrisonCellInstance,
+  NarrativeChoiceEvent,
+  NarrativeChoiceOption
 } from '../types/schema';
 import { INITIAL_HERO_PARTY } from './heroParty';
 import { ALL_MODULES, MODULE_1_CORE_SET } from '../data/modulesData';
@@ -26,6 +28,7 @@ import { rollAttack, rollDice, rollSavingThrow } from './dice';
 import { generateProceduralRoom } from './proceduralGenerator';
 import { TOWN_SHOP_ITEMS } from '../data/shopData';
 import { autoSaveSession } from './sessionManager';
+import { userAccountManager } from './userAccountManager';
 
 export class TabletopGameEngine {
   private state: GameEngineState;
@@ -172,6 +175,13 @@ export class TabletopGameEngine {
     };
 
     const baseStartingGold = 120;
+    const userProfile = userAccountManager.getProfile();
+
+    // Apply persistent upgrades to starting party
+    userAccountManager.applyPermanentUpgrades(initialHeroes);
+
+    const firstRoom = activeRooms[0];
+    const initialChoice = (firstRoom?.choiceEvent && !firstRoom.choiceEvent.isResolved) ? firstRoom.choiceEvent : null;
 
     return {
       currentModule: clonedPackage,
@@ -197,6 +207,11 @@ export class TabletopGameEngine {
       expeditionStartingGold: baseStartingGold,
       expeditionLootCollected: [],
       issuedVouchers: [],
+      bloodDebt: userProfile.blood_debt || 0,
+      narrativeFlags: [...(userProfile.narrative_flags || [])],
+      permanentUpgrades: [...(userProfile.permanent_upgrades || [])],
+      memoryItems: [...(userProfile.memory_items || [])],
+      activeChoiceEvent: initialChoice,
       gameStats: {
         roomsExplored: 1,
         monstersSlain: 0,
@@ -393,6 +408,18 @@ export class TabletopGameEngine {
         });
       }
 
+      if (room.choiceEvent && !room.choiceEvent.isResolved) {
+        const choiceObj = room.interactableObjects?.find(o => o.type === 'choice_event' && !o.isUsed);
+        const isNearby = choiceObj ? distance(hero.position, choiceObj.coordinate) <= 1 : true;
+        if (isNearby) {
+          nearbyInteractables.push({
+            type: 'choice_event' as any,
+            label: `Confront Dilemma: ${room.choiceEvent.title}`,
+            id: room.choiceEvent.id
+          });
+        }
+      }
+
       room.edgeCoordinates.forEach(edge => {
         if (distance(hero.position, edge.coordinate) <= 1 && !activeRooms.some(r => r.roomIndex === edge.targetRoomIndex && r.isExplored)) {
           nearbyInteractables.push({
@@ -424,7 +451,15 @@ export class TabletopGameEngine {
       if (nearestLivingMonster && monstersInRange.length === 0) {
         message = `1. Move Action: Advance towards ${nearestLivingMonster.name} (${nearestLivingMonster.dist} sq away), or click Hold / Lock Move.`;
       } else {
-        message = `1. Move Action: Select a highlighted destination (up to ${hero.speed} squares) or click Hold / Lock Move.`;
+        const unexploredEdge = activeRooms
+          .flatMap(r => r.edgeCoordinates)
+          .find(e => !e.isTriggered && !activeRooms.some(ar => ar.roomIndex === e.targetRoomIndex && ar.isExplored));
+
+        if (unexploredEdge) {
+          message = `1. Move Action: Advance towards the doorway at (${unexploredEdge.coordinate.x}, ${unexploredEdge.coordinate.y}) [DOOR] to explore the next chamber, or click Hold / Lock Move.`;
+        } else {
+          message = `1. Move Action: Select a highlighted destination (up to ${hero.speed} squares) or click Hold / Lock Move.`;
+        }
       }
     } else if (!hero.turnState.hasActed) {
       phaseStep = 'combat';
@@ -842,6 +877,9 @@ export class TabletopGameEngine {
       // 3. Hazards on coordinate
       const hazardHalted = this.checkHazardTrigger(step, hero);
 
+      // 4. Narrative Choice Event on coordinate
+      this.checkChoiceEventTrigger(step, hero);
+
       if (trapHalted || hazardHalted || hero.hp <= 0) {
         interrupted = true;
         break;
@@ -963,9 +1001,183 @@ export class TabletopGameEngine {
               type: 'boss'
             });
           }
+
+          // Narrative Solo Module 5: Narrative Dilemma Choice Trigger
+          if (newRoom.choiceEvent && !newRoom.choiceEvent.isResolved) {
+            this.state.activeChoiceEvent = newRoom.choiceEvent;
+            this.state.turnNotice = `📜 Narrative Dilemma: "${newRoom.choiceEvent.title}"! Choose your path carefully!`;
+            this.addLog({
+              source: 'Narrative Engine',
+              action: `Encountered Dilemma: ${newRoom.choiceEvent.title}`,
+              detail: `📜 ${newRoom.choiceEvent.situationText}`,
+              type: 'system'
+            });
+          }
+
+          // Module 5 Act III: Dynamic Boss Metamorphosis based on Act I & II choices
+          if (newRoom.id === 'm5_room_6' || (this.state.currentModuleId === 'module_5_blood_debt' && newRoom.isBossRoom)) {
+            this.applyDynamicReckoningBoss(newRoom);
+          }
         }
         break;
       }
+    }
+  }
+
+  private checkChoiceEventTrigger(coord: GridCoordinate, hero: HeroCharacter) {
+    for (const room of this.state.activeRooms) {
+      if (room.choiceEvent && !room.choiceEvent.isResolved) {
+        const choiceObj = room.interactableObjects?.find(o => o.type === 'choice_event' && !o.isUsed);
+        if (choiceObj && choiceObj.coordinate.x === coord.x && choiceObj.coordinate.y === coord.y) {
+          this.state.activeChoiceEvent = room.choiceEvent;
+          this.addLog({
+            source: 'Narrative Engine',
+            action: `Encountered: ${room.choiceEvent.title}`,
+            detail: `📜 ${room.choiceEvent.situationText}`,
+            type: 'system'
+          });
+          this.state.turnNotice = `📜 Narrative Choice: "${room.choiceEvent.title}"! Make your decision!`;
+          break;
+        }
+      }
+    }
+  }
+
+  private applyDynamicReckoningBoss(room: RoomDataBlock) {
+    const bossMonster = room.monsters.find(m => m.isBoss || m.id === 'm5_boss_reckoning');
+    if (!bossMonster) return;
+
+    const flags = new Set(this.state.narrativeFlags || []);
+
+    if (flags.has('act2_leader_escaped')) {
+      // Malakar escaped and rallied vengeance
+      bossMonster.name = 'Malakar, Warlord of the Red Vengeance';
+      bossMonster.monsterType = 'humanoid';
+      bossMonster.hp = 48;
+      bossMonster.maxHp = 48;
+      bossMonster.ac = 15;
+      bossMonster.speed = 6;
+      bossMonster.attacks = [
+        {
+          id: 'atk_malakar_scythes',
+          name: 'Twin Scythes of Vengeance',
+          range: 1,
+          attackBonus: 6,
+          damageDice: '2d8+3',
+          damageType: 'slashing',
+          description: 'Paired curved scythes whirling with crimson hatred.'
+        },
+        {
+          id: 'atk_malakar_bleed',
+          name: 'Bleeding Strike',
+          range: 1,
+          attackBonus: 5,
+          damageDice: '1d10+1d6',
+          damageType: 'fire',
+          description: 'Searing strike ignited by desert oil and bandit rage.'
+        }
+      ];
+      bossMonster.specialAbilities = ['Relentless Outlaw', 'Phase 2: Blood Frenzy (+1d6 damage)'];
+      if (room.bossEncounter) {
+        room.bossEncounter.bossName = 'Malakar, Warlord of the Red Vengeance';
+        room.bossEncounter.distinctCombatMechanic = 'Vengeance Unleashed: Escaped bandit leader returns commanding the Outlaw Horde with high burst agility!';
+      }
+      this.addLog({
+        source: 'RECKONING METAMORPHOSIS',
+        action: '⚔️ Boss Identity: Malakar the Warlord!',
+        detail: `🔥 CONSEQUENCE OF ACT II: Because you allowed the bandit leader to escape with his bribe, Malakar has rallied his entire syndicate! He enters the arena dual-wielding curved scythes to extinguish your party!`,
+        type: 'boss'
+      });
+      this.state.turnNotice = `⚔️ ACT III BOSS: Malakar, Warlord of the Red Vengeance (48 HP, AC 15)! Consequence of letting him escape in Act II!`;
+    } else if (flags.has('act1_survivors_plundered') && flags.has('act2_leader_executed')) {
+      // Plundered survivors and slaughtered bandit -> Phantoms seek retribution
+      bossMonster.name = 'The Vengeful Wraith of the Unburied';
+      bossMonster.monsterType = 'undead';
+      bossMonster.hp = 42;
+      bossMonster.maxHp = 42;
+      bossMonster.ac = 14;
+      bossMonster.speed = 6;
+      bossMonster.attacks = [
+        {
+          id: 'atk_wraith_touch',
+          name: 'Spectral Reave',
+          range: 1,
+          attackBonus: 6,
+          damageDice: '2d6+4',
+          damageType: 'necrotic',
+          description: 'Freezing phantom claws that pass straight through mundane armor.'
+        },
+        {
+          id: 'atk_wraith_wail',
+          name: 'Wail of the Plundered Dead',
+          range: 4,
+          attackBonus: 5,
+          damageDice: '3d6',
+          damageType: 'psychic',
+          description: 'An agonizing cacophony of the innocent victims whose supplies you plundered.'
+        }
+      ];
+      bossMonster.specialAbilities = ['Incorporeal Movement', 'Phase 2: Necrotic Torment (+1d6 extra damage)'];
+      if (room.bossEncounter) {
+        room.bossEncounter.bossName = 'The Vengeful Wraith of the Unburied';
+        room.bossEncounter.distinctCombatMechanic = 'Ghostly Retribution: Incorporeal phantom born of the plundered survivors and butchered outlaws!';
+      }
+      this.addLog({
+        source: 'RECKONING METAMORPHOSIS',
+        action: '💀 Boss Identity: The Vengeful Wraith!',
+        detail: `💀 CONSEQUENCE OF ACT I & II: Because you plundered the starving survivors and ruthlessly executed the bandits, their bitter spirits have coalesced into The Vengeful Wraith of the Unburied!`,
+        type: 'boss'
+      });
+      this.state.turnNotice = `💀 ACT III BOSS: The Vengeful Wraith of the Unburied (42 HP, AC 14)! Consequence of plundering survivors in Act I!`;
+    } else if (flags.has('act1_survivors_aided') && flags.has('act2_leader_executed')) {
+      // Righteous path -> High Inquisitor / Commander Kaelen tests the party
+      bossMonster.name = 'Commander Kaelen, Grand Arbiter of the Debt';
+      bossMonster.monsterType = 'humanoid';
+      bossMonster.hp = 46;
+      bossMonster.maxHp = 46;
+      bossMonster.ac = 16;
+      bossMonster.speed = 5;
+      bossMonster.attacks = [
+        {
+          id: 'atk_kaelen_radiant',
+          name: 'Sunforged Greatsword',
+          range: 1,
+          attackBonus: 7,
+          damageDice: '1d10+4',
+          damageType: 'radiant',
+          description: 'Heavy gilded greatsword humming with sanctified solar brilliance.'
+        },
+        {
+          id: 'atk_kaelen_smite',
+          name: 'Judicial Smite',
+          range: 1,
+          attackBonus: 6,
+          damageDice: '2d8+2',
+          damageType: 'force',
+          description: 'A crushing downward blow executing legal retribution.'
+        }
+      ];
+      bossMonster.specialAbilities = ['Shield of the High Court', 'Phase 2: Righteous Zeal (+1d6 damage)'];
+      if (room.bossEncounter) {
+        room.bossEncounter.bossName = 'Commander Kaelen, Grand Arbiter of the Debt';
+        room.bossEncounter.distinctCombatMechanic = 'Trial by Combat: Frontier High Inquisitor testing your valor and virtue in lawful battle!';
+      }
+      this.addLog({
+        source: 'RECKONING METAMORPHOSIS',
+        action: '⚖️ Boss Identity: Commander Kaelen!',
+        detail: `🌟 CONSEQUENCE OF ACT I & II: Word of your mercy toward the survivors and justice against the bandit syndicate reached the High Citadel! Commander Kaelen himself meets you on the arena sands for the final trial of law!`,
+        type: 'boss'
+      });
+      this.state.turnNotice = `⚖️ ACT III BOSS: Commander Kaelen, Grand Arbiter of the Debt (46 HP, AC 16)! Consequence of lawful & merciful deeds!`;
+    } else {
+      // Default construct arbiter
+      this.addLog({
+        source: 'RECKONING METAMORPHOSIS',
+        action: '⚖️ Boss Identity: The Arbiter of the Blood Debt!',
+        detail: `⚖️ The ageless construct guardian of the eternal scales balances your ledger with iron and fire.`,
+        type: 'boss'
+      });
+      this.state.turnNotice = `⚖️ ACT III BOSS: The Arbiter of the Blood Debt (44 HP, AC 15) emerges to balance the scales!`;
     }
   }
 
@@ -1169,6 +1381,29 @@ export class TabletopGameEngine {
   private triggerHeroDefeat(reason?: string) {
     this.state.isGameOver = true;
     this.state.turnPhase = 'DEFEAT';
+
+    if (this.state.currentModuleId === 'module_5_blood_debt' || this.state.currentModule.moduleNumber === 5) {
+      // DEATH IN 《BLOOD DEBT》 ENFORCEMENT:
+      // Gold earned this run is halved, blood_debt increases by 1,
+      // permanent upgrades and narrative items are retained.
+      const startingGold = this.state.expeditionStartingGold ?? 120;
+      const goldEarnedThisRun = Math.max(0, this.state.partyGold - startingGold);
+      const halvedGoldEarned = Math.floor(goldEarnedThisRun / 2);
+      const lostGold = goldEarnedThisRun - halvedGoldEarned;
+
+      this.state.partyGold = startingGold + halvedGoldEarned;
+      this.state.bloodDebt = (this.state.bloodDebt || 0) + 1;
+      userAccountManager.handlePlayerDeath(goldEarnedThisRun);
+
+      this.addLog({
+        source: 'BLOOD DEBT ENFORCEMENT',
+        action: '🩸 Blood Debt Incurred on Demise',
+        detail: `💀 HERO SLAIN: Gold earned this run is halved (-${lostGold} GP forfeited, ${halvedGoldEarned} GP retained). Blood Debt increased by 1 (Total Blood Debt: ${this.state.bloodDebt}). Permanent upgrades and narrative items are retained!`,
+        type: 'boss'
+      });
+      this.state.turnNotice = `🩸 BLOOD DEBT: Gold earned halved (-${lostGold} GP). Blood Debt increased to ${this.state.bloodDebt}. Permanent upgrades and narrative items retained!`;
+      return;
+    }
 
     if (this.state.isSoloExpedition) {
       // DEATH = ZERO RETURNS ENFORCEMENT
@@ -1518,9 +1753,9 @@ export class TabletopGameEngine {
   }
 
   /**
-   * Hero Interact Action: Open Chest, Disarm Trap, Deactivate Pillar, Drink Potion, Door, Stele, Rest Point
+   * Hero Interact Action: Open Chest, Disarm Trap, Deactivate Pillar, Drink Potion, Door, Stele, Rest Point, Choice Event
    */
-  public executeInteract(targetType: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard' | 'stele' | 'rest_point', targetId?: string): boolean {
+  public executeInteract(targetType: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard' | 'stele' | 'rest_point' | 'choice_event', targetId?: string): boolean {
     const hero = this.state.heroes[this.state.activeHeroIndex];
     if (!hero || hero.hp <= 0 || hero.turnState.interactsRemaining <= 0) return false;
 
@@ -1565,29 +1800,34 @@ export class TabletopGameEngine {
     } else if (targetType === 'stele') {
       // Examine Blood Stele of the Crucible
       for (const room of this.state.activeRooms) {
-        const stele = room.interactableObjects?.find(obj => obj.type === 'stele' && !obj.isUsed && distance(hero.position, obj.coordinate) <= 1);
-        if (stele) {
+        const isNearbyWarningStele = room.warningStele && distance(hero.position, room.warningStele.coordinate) <= 1;
+        const steleObj = room.interactableObjects?.find(obj => obj.type === 'stele' && !obj.isUsed && distance(hero.position, obj.coordinate) <= 1);
+        if (isNearbyWarningStele || steleObj) {
           hero.turnState.interactsRemaining = 0;
           hero.turnState.hasInteracted = true;
-          stele.isUsed = true;
+          if (steleObj) steleObj.isUsed = true;
 
           // Grant tactical warding blessing
-          hero.turnState.statusEffects.push({
-            id: 'crucible_resolve',
-            name: 'Crucible Resolve',
-            type: 'buff',
-            durationTurns: 5,
-            description: 'Carved runes steel your mind against fear. +1 AC and +2 on Attack rolls.',
-            statModifiers: { ac: 1, attackRollBonus: 2 }
-          });
+          if (!hero.turnState.statusEffects.some(s => s.id === 'crucible_resolve')) {
+            hero.turnState.statusEffects.push({
+              id: 'crucible_resolve',
+              name: 'Crucible Resolve',
+              type: 'buff',
+              durationTurns: 5,
+              description: 'Carved runes steel your mind against fear. +1 AC and +2 on Attack rolls.',
+              statModifiers: { ac: 1, attackRollBonus: 2 }
+            });
+          }
 
+          const steleMsg = room.warningStele?.message || 'ONLY THE CONQUEROR BEARS THE RED MANTLE. DEATH STRIPS ALL SPOILS.';
+          const steleTitle = room.warningStele?.title || 'Stele of Ultimatum';
           this.addLog({
             source: hero.name,
-            action: 'Deciphered Ancient Stele',
-            detail: `📜 "ONLY THE CONQUEROR BEARS THE RED MANTLE. DEATH STRIPS ALL SPOILS." Ancient crimson runes pulse with determination! ${hero.name} gains Crucible Resolve (+1 AC, +2 Attack for 5 turns)!`,
+            action: `Deciphered ${steleTitle}`,
+            detail: `📜 "${steleMsg}" Ancient crimson runes pulse with determination! ${hero.name} gains Crucible Resolve (+1 AC, +2 Attack for 5 turns)!`,
             type: 'system'
           });
-          this.state.turnNotice = `📜 Runes Deciphered: "Death = Zero Returns". ${hero.name} gained Crucible Resolve (+1 AC, +2 Atk)!`;
+          this.state.turnNotice = `📜 Runes Deciphered: "${steleTitle}". ${hero.name} gained Crucible Resolve (+1 AC, +2 Atk)!`;
           this.updateTurnPrompt();
           this.notify();
           return true;
@@ -1596,20 +1836,23 @@ export class TabletopGameEngine {
     } else if (targetType === 'rest_point') {
       // Rest at Sanctuary Rest Point
       for (const room of this.state.activeRooms) {
-        const rest = room.interactableObjects?.find(obj => obj.type === 'rest_point' && !obj.isUsed && distance(hero.position, obj.coordinate) <= 1);
-        if (rest) {
+        const isNearbyRestPoint = room.restPoint && !room.restPoint.isUsed && distance(hero.position, room.restPoint.coordinate) <= 1;
+        const restObj = room.interactableObjects?.find(obj => obj.type === 'rest_point' && !obj.isUsed && distance(hero.position, obj.coordinate) <= 1);
+        if (isNearbyRestPoint || restObj) {
           hero.turnState.interactsRemaining = 0;
           hero.turnState.hasInteracted = true;
-          rest.isUsed = true;
+          if (room.restPoint) room.restPoint.isUsed = true;
+          if (restObj) restObj.isUsed = true;
 
           const healAmount = Math.min(hero.maxHp - hero.hp, 14);
           hero.hp = Math.min(hero.maxHp, hero.hp + healAmount);
           hero.abilities.forEach(a => { a.currentCooldown = 0; });
 
+          const shrineName = room.restPoint?.name || 'Dawn Altar';
           this.addLog({
             source: hero.name,
-            action: 'Sanctuary Rest (Dawn Altar)',
-            detail: `🕯️ The warm light of the Dawn Altar revives the weary champion! Recovered +${healAmount} HP [${hero.hp}/${hero.maxHp}] and all tactical abilities are fully refreshed!`,
+            action: `Sanctuary Rest (${shrineName})`,
+            detail: `🕯️ The warm light of the ${shrineName} revives the weary champion! Recovered +${healAmount} HP [${hero.hp}/${hero.maxHp}] and all tactical abilities are fully refreshed!`,
             type: 'heal'
           });
           this.state.turnNotice = `🕯️ Sanctuary Rest: Recovered +${healAmount} HP and refreshed all cooldowns!`;
@@ -1773,9 +2016,79 @@ export class TabletopGameEngine {
           return true;
         }
       }
+    } else if (targetType === 'choice_event') {
+      for (const room of this.state.activeRooms) {
+        if (room.choiceEvent && !room.choiceEvent.isResolved) {
+          hero.turnState.interactsRemaining = 0;
+          hero.turnState.hasInteracted = true;
+          this.state.activeChoiceEvent = room.choiceEvent;
+          this.addLog({
+            source: 'Narrative Engine',
+            action: `Confronting: ${room.choiceEvent.title}`,
+            detail: `📜 ${room.choiceEvent.situationText}`,
+            type: 'system'
+          });
+          this.state.turnNotice = `📜 Narrative Choice: "${room.choiceEvent.title}"! Make your decision!`;
+          this.updateTurnPrompt();
+          this.notify();
+          return true;
+        }
+      }
     }
 
     return false;
+  }
+
+  /**
+   * Resolve player's choice in a Narrative Choice Modal event
+   */
+  public resolveChoiceOption(option: NarrativeChoiceOption) {
+    const event = this.state.activeChoiceEvent;
+    if (!event) return;
+
+    event.isResolved = true;
+    event.chosenOptionId = option.id;
+    this.state.activeChoiceEvent = null;
+
+    if (!this.state.narrativeFlags) this.state.narrativeFlags = [];
+    if (!this.state.narrativeFlags.includes(option.flagToSet)) {
+      this.state.narrativeFlags.push(option.flagToSet);
+    }
+    userAccountManager.addNarrativeFlag(option.flagToSet);
+
+    if (option.goldChange) {
+      this.state.partyGold += option.goldChange;
+      this.state.gameStats.goldEarned += Math.max(0, option.goldChange);
+    }
+
+    // Mark room choiceEvent and interactableObjects as used
+    for (const room of this.state.activeRooms) {
+      if (room.choiceEvent?.id === event.id) {
+        room.choiceEvent.isResolved = true;
+        room.choiceEvent.chosenOptionId = option.id;
+      }
+      const obj = room.interactableObjects?.find(o => o.type === 'choice_event');
+      if (obj) obj.isUsed = true;
+    }
+
+    this.addLog({
+      source: 'Narrative Consequence',
+      action: `Decided: ${option.text}`,
+      detail: `⚖️ "${option.consequenceSummary}" (Flag Recorded: [${option.flagToSet}]${option.goldChange ? `, Gold: +${option.goldChange} GP` : ''}).`,
+      type: 'system'
+    });
+
+    this.state.turnNotice = `⚖️ Consequence Recorded: "${option.text}". ${option.consequenceSummary}`;
+    this.updateTurnPrompt();
+    this.notify();
+  }
+
+  /**
+   * Dismiss the narrative choice modal without finalizing
+   */
+  public dismissChoiceEvent() {
+    this.state.activeChoiceEvent = null;
+    this.notify();
   }
 
   /**
@@ -1939,6 +2252,43 @@ export class TabletopGameEngine {
 
     const hero = this.state.heroes.find(h => h.id === heroId) || this.state.heroes[0];
     this.state.partyGold -= item.cost;
+
+    if (item.category === 'permanent_upgrade') {
+      const upgradeId = item.permanentUpgradeId || item.id;
+      userAccountManager.addPermanentUpgrade(upgradeId);
+      userAccountManager.applyPermanentUpgrades(this.state.heroes);
+      if (!this.state.permanentUpgrades) this.state.permanentUpgrades = [];
+      if (!this.state.permanentUpgrades.includes(upgradeId)) {
+        this.state.permanentUpgrades.push(upgradeId);
+      }
+      this.addLog({
+        source: 'Town Reliquary',
+        action: 'Permanent Upgrade Acquired',
+        detail: `✨ Acquired Permanent Account Upgrade: ${item.name}! ${item.permanentUpgradeEffect || item.description}. Permanently retained across sessions and deaths. [Remaining Gold: ${this.state.partyGold} GP]`,
+        type: 'heal'
+      });
+      this.state.turnNotice = `✨ Permanent Upgrade Active: ${item.name}! (${this.state.partyGold} GP left)`;
+      this.notify();
+      return true;
+    }
+
+    if (item.category === 'memory_item') {
+      const memoryId = item.memoryItemId || item.id;
+      userAccountManager.addMemoryItem(memoryId);
+      if (!this.state.memoryItems) this.state.memoryItems = [];
+      if (!this.state.memoryItems.includes(memoryId)) {
+        this.state.memoryItems.push(memoryId);
+      }
+      this.addLog({
+        source: 'Memory Reliquary',
+        action: 'Narrative Memory Item Acquired',
+        detail: `📜 Acquired Narrative Memory: ${item.name}! Lore unlocked: "${item.narrativeUnlockSnippet || item.description}". Zero impact on combat balance; unlocks text and endings! [Remaining Gold: ${this.state.partyGold} GP]`,
+        type: 'system'
+      });
+      this.state.turnNotice = `📜 Memory Item Acquired: ${item.name}! Lore unlocked! (${this.state.partyGold} GP left)`;
+      this.notify();
+      return true;
+    }
 
     if (item.weaponUpgrade) {
       hero.weapons.unshift(JSON.parse(JSON.stringify(item.weaponUpgrade)));

@@ -19,6 +19,7 @@ import { CharacterImportModal } from './components/CharacterImportModal';
 import { TownShopModal } from './components/TownShopModal';
 import { SessionManagerModal } from './components/SessionManagerModal';
 import { AuthModal } from './components/AuthModal';
+import { NarrativeChoiceModal } from './components/NarrativeChoiceModal';
 import { MultiplayerBrowser } from './components/MultiplayerBrowser';
 import { Trophy, Skull, RotateCcw, ShoppingBag, Coins, FolderArchive, Users, Loader2, WifiOff } from 'lucide-react';
 import { auth } from './lib/firebase';
@@ -165,7 +166,7 @@ export default function App() {
   };
 
   // Interact Handler
-  const handleInteractTarget = (type: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard', id?: string) => {
+  const handleInteractTarget = (type: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard' | 'stele' | 'rest_point', id?: string) => {
     if (!canAct()) return;
     engine.executeInteract(type as any, id);
   };
@@ -496,6 +497,14 @@ export default function App() {
         onCharacterImported={(data) => {
           engine.addImportedHero(data);
         }}
+      />
+
+      {/* Narrative Dilemma & Consequence Choice Modal */}
+      <NarrativeChoiceModal
+        isOpen={!!engineState.activeChoiceEvent}
+        event={engineState.activeChoiceEvent}
+        onSelectOption={(option) => engine.resolveChoiceOption(option)}
+        onClose={() => engine.dismissChoiceEvent()}
       />
     </div>
   );

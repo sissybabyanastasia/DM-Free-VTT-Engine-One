@@ -86,7 +86,7 @@ export interface WeaponAttack {
   range: number; // 1 = melee (adjacent 5ft), >1 = ranged
   attackBonus: number;
   damageDice: string; // e.g. "1d8+3"
-  damageType: 'slashing' | 'piercing' | 'bludgeoning' | 'fire' | 'radiant' | 'necrotic' | 'force' | 'acid' | 'poison';
+  damageType: 'slashing' | 'piercing' | 'bludgeoning' | 'fire' | 'radiant' | 'necrotic' | 'force' | 'acid' | 'poison' | 'psychic';
   description: string;
 }
 
@@ -116,8 +116,8 @@ export interface InventoryItem {
 
 // ================= MONSTER AI DEFINITION ================= //
 
-export type MonsterBehaviorType = 'chase' | 'ambush' | 'patrol' | 'boss_phased' | 'support';
-export type TargetingRule = 'lowest_hp' | 'nearest' | 'highest_threat' | 'isolated' | 'random';
+export type MonsterBehaviorType = 'chase' | 'ambush' | 'patrol' | 'boss_phased' | 'support' | 'melee_chase' | 'patrol_sentinel' | 'ranged_kite';
+export type TargetingRule = 'lowest_hp' | 'nearest' | 'highest_threat' | 'isolated' | 'random' | 'lowest_ac';
 
 export interface AIActionStep {
   triggerCondition: 'always' | 'in_attack_range' | 'out_of_range' | 'hp_below_half' | 'turn_interval';
@@ -148,10 +148,10 @@ export interface MonsterAIConfig {
 
 export interface MonsterInstance {
   id: string;
-  templateId: string;
+  templateId?: string;
   name: string;
-  monsterType: 'skeleton' | 'goblin' | 'giant_spider' | 'hobgoblin' | 'wraith' | 'venom_troll' | 'boss' | 'hound' | 'dragon' | 'hound_boss';
-  tier: 1 | 2 | 3;
+  monsterType: 'skeleton' | 'goblin' | 'giant_spider' | 'hobgoblin' | 'wraith' | 'venom_troll' | 'boss' | 'hound' | 'dragon' | 'hound_boss' | 'undead' | 'humanoid' | 'construct';
+  tier?: 1 | 2 | 3 | 4;
   hp: number;
   maxHp: number;
   ac: number;
@@ -184,21 +184,25 @@ export interface ExplorationTrigger {
 
 // ================= HAZARDS & TRAPS ================= //
 
-export type HazardType = 'crumbling_floor' | 'toxic_miasma' | 'acid_pool' | 'magma_vent';
+export type HazardType = 'crumbling_floor' | 'toxic_miasma' | 'acid_pool' | 'magma_vent' | 'environmental';
 
 export interface HazardInstance {
   id: string;
   type: HazardType;
   name: string;
-  coordinate: GridCoordinate;
-  roomId: string;
-  currentIntegrity: number; // e.g. for crumbling floor: 2 steps remaining
-  maxIntegrity: number;
-  state: 'stable' | 'cracking' | 'collapsed' | 'active';
-  damageOnTrigger: string;
-  damageType: 'bludgeoning' | 'poison' | 'acid' | 'fire';
+  coordinate?: GridCoordinate;
+  affectedCoordinates?: GridCoordinate[];
+  roomId?: string;
+  currentIntegrity?: number; // e.g. for crumbling floor: 2 steps remaining
+  maxIntegrity?: number;
+  state?: 'stable' | 'cracking' | 'collapsed' | 'active';
+  isActive?: boolean;
+  damageOnTrigger?: string;
+  damagePerTurn?: string;
+  damageType?: 'bludgeoning' | 'poison' | 'acid' | 'fire';
   savingThrowDC: number;
-  saveAttribute: 'dex' | 'con';
+  saveAttribute?: 'dex' | 'con';
+  savingThrowType?: 'dex' | 'con';
   description: string;
 }
 
@@ -206,20 +210,22 @@ export type TrapType = 'spike_pit' | 'poison_dart' | 'pressure_boulder' | 'arcan
 
 export interface TrapInstance {
   id: string;
-  type: TrapType;
-  name: string;
+  type?: TrapType;
+  name?: string;
   coordinate: GridCoordinate;
-  roomId: string;
-  isDetected: boolean;
+  roomId?: string;
+  isDetected?: boolean;
+  detected?: boolean;
   isDisarmed: boolean;
   isTriggered: boolean;
   perceptionDC: number;
   disarmDC: number;
   damageDice: string;
-  damageType: 'piercing' | 'poison' | 'bludgeoning' | 'force';
-  savingThrowDC: number;
-  saveAttribute: 'dex' | 'con' | 'wis';
-  description: string;
+  damageType?: 'piercing' | 'poison' | 'bludgeoning' | 'force' | 'fire';
+  savingThrowDC?: number;
+  saveAttribute?: 'dex' | 'con' | 'wis';
+  description?: string;
+  effectDescription?: string;
 }
 
 // ================= BOSS ENCOUNTER MECHANICS ================= //
@@ -236,14 +242,16 @@ export interface BossPhaseMechanic {
 }
 
 export interface BossEncounterData {
-  bossMonsterId: string;
+  bossMonsterId?: string;
   bossName: string;
-  title: string;
-  currentPhase: number;
-  totalPhases: number;
+  title?: string;
+  currentPhase?: number;
+  totalPhases?: number;
   pillarsToDeactivate?: { coordinate: GridCoordinate; isDeactivated: boolean }[];
-  phaseMechanics: BossPhaseMechanic[];
-  defeatCondition: 'kill_boss' | 'deactivate_pillars_then_kill';
+  phases?: BossPhaseMechanic[];
+  phaseMechanics?: BossPhaseMechanic[];
+  defeatCondition?: 'kill_boss' | 'deactivate_pillars_then_kill';
+  distinctCombatMechanic?: string;
 }
 
 // ================= ROOM DATA BLOCK ================= //
@@ -251,8 +259,10 @@ export interface BossEncounterData {
 export interface ChestInstance {
   id: string;
   coordinate: GridCoordinate;
-  isOpened: boolean;
+  isOpened?: boolean;
+  isOpen?: boolean;
   isLocked: boolean;
+  trapped?: boolean;
   unlockDC?: number;
   loot: InventoryItem[];
   goldReward?: number;
@@ -299,11 +309,13 @@ export interface HoundEventState {
   houndBossDefeated: boolean;
 }
 
+export type ShopCategory = 'weapon' | 'armor' | 'consumable' | 'relic' | 'permanent_upgrade' | 'memory_item';
+
 export interface ShopItem {
   id: string;
   name: string;
   cost: number;
-  category: 'weapon' | 'armor' | 'consumable' | 'relic';
+  category: ShopCategory;
   description: string;
   targetClass?: 'fighter' | 'rogue' | 'wizard' | 'cleric' | 'all';
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
@@ -314,8 +326,39 @@ export interface ShopItem {
     ac?: number;
     maxHp?: number;
     speed?: number;
+    attackBonus?: number;
   };
   consumableItem?: InventoryItem;
+  // Permanent upgrade specification (persists across runs/deaths)
+  permanentUpgradeId?: string;
+  permanentUpgradeEffect?: string;
+  // Narrative item specification (unlocks text/endings, strictly zero combat stat changes)
+  memoryItemId?: string;
+  narrativeUnlockSnippet?: string;
+  unlockedEndingTitle?: string;
+}
+
+export interface NarrativeChoiceOption {
+  id: string;
+  text: string;
+  description: string;
+  flagToSet: string;
+  goldChange?: number;
+  itemRewardId?: string;
+  consequenceSummary: string;
+}
+
+export interface NarrativeChoiceEvent {
+  id: string;
+  actNumber: 1 | 2 | 3;
+  actTitle: string;
+  title: string;
+  speaker: string;
+  portrait: string;
+  situationText: string;
+  options: NarrativeChoiceOption[];
+  isResolved: boolean;
+  chosenOptionId?: string;
 }
 
 export interface WarningSteleInstance {
@@ -352,7 +395,8 @@ export interface RoomDataBlock {
   treasureHoard?: TreasureHoardInstance;
   warningStele?: WarningSteleInstance;
   restPoint?: RestPointInstance;
-  interactableObjects?: Array<{ id: string; type: 'stele' | 'rest_point' | string; name: string; coordinate: GridCoordinate; isUsed: boolean; description?: string; }>;
+  choiceEvent?: NarrativeChoiceEvent;
+  interactableObjects?: Array<{ id: string; type: 'stele' | 'rest_point' | 'choice_event' | string; name: string; coordinate: GridCoordinate; isUsed: boolean; description?: string; }>;
   isExplored: boolean;
   flavorText: string;
   isBossRoom: boolean;
@@ -500,6 +544,21 @@ export interface GameEngineState {
   isGameOver: boolean;
   isVictory: boolean;
   bossDefeated?: boolean;
+  // Blood Debt & Multi-Session Narrative Solo fields
+  bloodDebt: number;
+  narrativeFlags: string[];
+  permanentUpgrades: string[];
+  memoryItems: string[];
+  activeChoiceEvent?: NarrativeChoiceEvent | null;
+}
+
+export interface UserAccountProfile {
+  email: string;
+  createdAt: string;
+  blood_debt: number;
+  narrative_flags: string[];
+  permanent_upgrades: string[];
+  memory_items: string[];
 }
 
 export interface SavedSessionHeroSummary {

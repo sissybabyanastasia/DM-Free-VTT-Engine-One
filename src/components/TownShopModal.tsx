@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GameEngineState, ShopItem } from '../types/schema';
 import { TOWN_SHOP_ITEMS } from '../data/shopData';
+import { userAccountManager } from '../engine/userAccountManager';
 import { 
   ShoppingBag, 
   Coins, 
@@ -19,7 +20,10 @@ import {
   Flame, 
   Check, 
   Info,
-  ArrowRight
+  ArrowRight,
+  BookOpen,
+  Scale,
+  Award
 } from 'lucide-react';
 
 interface TownShopModalProps {
@@ -36,15 +40,24 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
   onBuyItem
 }) => {
   const heroes = state?.heroes || [];
-  const [activeCategory, setActiveCategory] = useState<'all' | 'weapon' | 'armor' | 'relic' | 'consumable'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'consumable' | 'permanent_upgrade' | 'memory_item' | 'weapon_armor'>('all');
   const [selectedHeroId, setSelectedHeroId] = useState<string>(heroes[0]?.id || '');
   const [purchaseNotice, setPurchaseNotice] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState(userAccountManager.getProfile());
+
+  useEffect(() => {
+    const unsub = userAccountManager.subscribe(p => setUserProfile(p));
+    return unsub;
+  }, []);
 
   if (!isOpen || !state) return null;
 
   const isAccessible = !!state.canAccessShop;
   const filteredItems = TOWN_SHOP_ITEMS.filter(item => {
     if (activeCategory === 'all') return true;
+    if (activeCategory === 'weapon_armor') {
+      return item.category === 'weapon' || item.category === 'armor' || item.category === 'relic';
+    }
     return item.category === activeCategory;
   });
 
@@ -54,7 +67,8 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
     if (!isAccessible || !selectedHero) return;
     const success = onBuyItem(item.id, selectedHero.id);
     if (success) {
-      setPurchaseNotice(`Purchased ${item.name} for ${selectedHero.name}!`);
+      setUserProfile(userAccountManager.getProfile());
+      setPurchaseNotice(`Acquired ${item.name}!`);
       setTimeout(() => setPurchaseNotice(null), 3000);
     }
   };
@@ -70,6 +84,7 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
       case 'Sparkles': return <Sparkles className="w-4 h-4 text-pink-300" />;
       case 'Heart': return <Heart className="w-4 h-4 text-red-400" />;
       case 'Footprints': return <Footprints className="w-4 h-4 text-lime-400" />;
+      case 'FileText': return <BookOpen className="w-4 h-4 text-amber-300" />;
       default: return <Sparkles className="w-4 h-4 text-amber-400" />;
     }
   };
@@ -89,7 +104,7 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
         initial={{ scale: 0.95, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="w-full max-w-4xl bg-stone-950 border border-stone-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden"
+        className="w-full max-w-5xl bg-stone-950 border border-stone-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden"
       >
         {/* Modal Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-stone-950 via-amber-950/30 to-stone-950 border-b border-stone-800 flex items-center justify-between shrink-0">
@@ -99,10 +114,10 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-black text-amber-200 font-serif tracking-wide flex items-center gap-2">
-                Town Outfitter & Alchemist Emporium
+                Town Outfitter, Reliquary & Memory Vault
               </h2>
               <p className="text-xs text-stone-400 font-sans">
-                Exchange looted dungeon gold for battle-forged weapons, reinforced armor, and mystic draughts
+                Exchange gold for Consumables, Permanent Account Upgrades, and Narrative Memory Items
               </p>
             </div>
           </div>
@@ -121,6 +136,29 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        {/* Account Persistent Stats Banner */}
+        <div className="px-5 py-2 bg-stone-900/90 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs font-mono shrink-0">
+          <div className="flex items-center gap-4">
+            <span className="text-stone-400">Account Profile:</span>
+            <span className="flex items-center gap-1.5 text-rose-300 font-bold">
+              <Scale className="w-3.5 h-3.5 text-rose-400" />
+              <span>Blood Debt: {userProfile.blood_debt}</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-amber-300">
+              <Award className="w-3.5 h-3.5 text-amber-400" />
+              <span>Permanent Upgrades: {userProfile.permanent_upgrades?.length || 0}</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-purple-300">
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              <span>Narrative Memories: {userProfile.memory_items?.length || 0}</span>
+            </span>
+          </div>
+
+          <span className="text-[11px] text-stone-400 italic">
+            Upgrades & memories are retained across runs and on death
+          </span>
         </div>
 
         {/* Shop Access Banner & Rules Enforcement */}
@@ -160,8 +198,65 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
           )}
         </div>
 
-        {/* Roster Target Selector & Category Filter Header */}
+        {/* Category Filter Header & Roster Selector */}
         <div className="px-5 py-3 bg-stone-900/60 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          {/* Category Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-stone-950 p-1 rounded-xl border border-stone-800">
+            <button
+              onClick={() => setActiveCategory('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeCategory === 'all'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              All Wares
+            </button>
+            <button
+              onClick={() => setActiveCategory('consumable')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeCategory === 'consumable'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              <Heart className="w-3.5 h-3.5" />
+              <span>Consumables</span>
+            </button>
+            <button
+              onClick={() => setActiveCategory('permanent_upgrade')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeCategory === 'permanent_upgrade'
+                  ? 'bg-amber-500 text-stone-950 shadow-sm'
+                  : 'text-amber-400/90 hover:text-amber-300'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Permanent Upgrades</span>
+            </button>
+            <button
+              onClick={() => setActiveCategory('memory_item')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeCategory === 'memory_item'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-purple-300 hover:text-purple-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Narrative Items</span>
+            </button>
+            <button
+              onClick={() => setActiveCategory('weapon_armor')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeCategory === 'weapon_armor'
+                  ? 'bg-stone-700 text-white shadow-sm'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              Weapons & Armor
+            </button>
+          </div>
+
           {/* Target Hero Selector */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-stone-400 font-mono uppercase tracking-wider">Recipient:</span>
@@ -191,36 +286,23 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
               })}
             </div>
           </div>
-
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1 bg-stone-950 p-1 rounded-xl border border-stone-800">
-            {(['all', 'weapon', 'armor', 'relic', 'consumable'] as const).map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${
-                  activeCategory === cat
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-stone-400 hover:text-stone-200'
-                }`}
-              >
-                {cat === 'all' ? 'All Wares' : cat === 'weapon' ? 'Weapons' : cat === 'armor' ? 'Armor & Shields' : cat === 'relic' ? 'Relics' : 'Potions'}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Goods Catalogue Grid */}
-        <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredItems.map((item) => {
             const canAfford = state.partyGold >= item.cost;
             const matchesClass = item.targetClass === 'all' || item.targetClass === selectedHero?.classType;
+            const isOwnedUpgrade = item.permanentUpgradeId ? userProfile.permanent_upgrades?.includes(item.permanentUpgradeId) : false;
+            const isOwnedMemory = item.memoryItemId ? userProfile.memory_items?.includes(item.memoryItemId) : false;
 
             return (
               <div
                 key={item.id}
-                className={`flex flex-col justify-between p-3.5 rounded-xl border transition-all ${
-                  canAfford && isAccessible
+                className={`flex flex-col justify-between p-4 rounded-xl border transition-all ${
+                  isOwnedUpgrade || isOwnedMemory
+                    ? 'bg-stone-900/90 border-emerald-700/60 shadow-inner'
+                    : canAfford && isAccessible
                     ? 'bg-stone-900/80 hover:bg-stone-900 border-stone-800 hover:border-amber-500/40 shadow-sm'
                     : 'bg-stone-950/60 border-stone-800/80 opacity-80'
                 }`}
@@ -241,7 +323,7 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
                             {item.rarity}
                           </span>
                           <span className="text-[10px] font-mono text-stone-400 capitalize">
-                            {item.category}
+                            {item.category.replace('_', ' ')}
                           </span>
                         </div>
                       </div>
@@ -258,6 +340,37 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
                   <p className="text-xs text-stone-300 mb-3 leading-relaxed">
                     {item.description}
                   </p>
+
+                  {/* Narrative Item Callout Notice */}
+                  {item.category === 'memory_item' && (
+                    <div className="mb-3 p-2.5 rounded-lg bg-purple-950/40 border border-purple-800/50 text-[11px] text-purple-200">
+                      <div className="flex items-center gap-1.5 font-bold mb-1">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+                        <span>Narrative Lore Item (Zero Combat Stats)</span>
+                      </div>
+                      <p className="text-purple-300/80 italic text-[10px]">
+                        Unlocks: {item.unlockedEndingTitle || 'Secret Act Lore'}
+                      </p>
+                      {isOwnedMemory && item.narrativeUnlockSnippet && (
+                        <div className="mt-2 p-2 rounded bg-stone-950/80 border border-purple-700/40 text-[11px] text-purple-100 italic">
+                          "{item.narrativeUnlockSnippet}"
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Permanent Upgrade Callout Notice */}
+                  {item.category === 'permanent_upgrade' && item.permanentUpgradeEffect && (
+                    <div className="mb-3 p-2.5 rounded-lg bg-amber-950/30 border border-amber-700/40 text-[11px] text-amber-200">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <Shield className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Permanent Account Boon:</span>
+                      </div>
+                      <p className="text-amber-300/90 mt-0.5">
+                        {item.permanentUpgradeEffect}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Stat / Upgrade Callouts */}
                   <div className="flex flex-wrap gap-1.5 mb-3">
@@ -294,34 +407,46 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
                 </div>
 
                 {/* Purchase Action Button */}
-                <button
-                  disabled={!isAccessible || !canAfford}
-                  onClick={() => handleBuy(item)}
-                  className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
-                    !isAccessible
-                      ? 'bg-stone-900 border border-stone-800 text-stone-400 cursor-not-allowed'
-                      : !canAfford
-                      ? 'bg-stone-900 border border-red-900/40 text-red-400 cursor-not-allowed'
-                      : 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-900/30 cursor-pointer'
-                  }`}
-                >
-                  {!isAccessible ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-stone-400" />
-                      <span>Shop Inaccessible in Dungeon</span>
-                    </>
-                  ) : !canAfford ? (
-                    <>
-                      <Coins className="w-3.5 h-3.5 text-red-400" />
-                      <span>Need {item.cost - state.partyGold} More GP</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingBag className="w-3.5 h-3.5" />
-                      <span>Purchase for {selectedHero.name}</span>
-                    </>
-                  )}
-                </button>
+                {isOwnedUpgrade ? (
+                  <div className="w-full py-2 px-3 rounded-xl bg-emerald-950/80 border border-emerald-600/60 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span>Permanent Upgrade Active</span>
+                  </div>
+                ) : isOwnedMemory ? (
+                  <div className="w-full py-2 px-3 rounded-xl bg-purple-950/80 border border-purple-600/60 text-purple-300 text-xs font-bold flex items-center justify-center gap-1.5">
+                    <Check className="w-4 h-4 text-purple-400" />
+                    <span>In Memory Collection (Lore Unlocked)</span>
+                  </div>
+                ) : (
+                  <button
+                    disabled={!isAccessible || !canAfford}
+                    onClick={() => handleBuy(item)}
+                    className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                      !isAccessible
+                        ? 'bg-stone-900 border border-stone-800 text-stone-400 cursor-not-allowed'
+                        : !canAfford
+                        ? 'bg-stone-900 border border-red-900/40 text-red-400 cursor-not-allowed'
+                        : 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-900/30 cursor-pointer'
+                    }`}
+                  >
+                    {!isAccessible ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-stone-400" />
+                        <span>Shop Inaccessible in Dungeon</span>
+                      </>
+                    ) : !canAfford ? (
+                      <>
+                        <Coins className="w-3.5 h-3.5 text-red-400" />
+                        <span>Need {item.cost - state.partyGold} More GP</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>Purchase for {selectedHero.name}</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             );
           })}
@@ -332,7 +457,7 @@ export const TownShopModal: React.FC<TownShopModalProps> = ({
           <div className="flex items-center gap-1.5">
             <Info className="w-4 h-4 text-amber-400" />
             <span>
-              Gold collected across dungeon runs is retained between sessions as persistent campaign progression.
+              Permanent Upgrades & Narrative Memories are permanently etched into your account profile across all runs.
             </span>
           </div>
           <button

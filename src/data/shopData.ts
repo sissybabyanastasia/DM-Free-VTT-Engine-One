@@ -253,6 +253,153 @@ export const TOWN_SHOP_ITEMS: ShopItem[] = [
       quantity: 1
     }
   },
+  {
+    id: 'shop_draught_vigor',
+    name: 'Crimson Draught of Vigor',
+    cost: 85,
+    category: 'consumable',
+    targetClass: 'all',
+    rarity: 'rare',
+    icon: 'Heart',
+    description: 'Restores 15 Hit Points and purges debilitating conditions on use.',
+    consumableItem: {
+      id: 'draught_vigor_shop',
+      name: 'Crimson Draught of Vigor',
+      type: 'consumable',
+      rarity: 'rare',
+      description: 'Restores 15 HP immediately when imbibed.',
+      effect: 'heal_15',
+      quantity: 1
+    }
+  },
+
+  // --- PERMANENT UPGRADES (PERSIST ACROSS RUNS & RETAINED ON DEATH) ---
+  {
+    id: 'shop_perm_blood_plating',
+    name: 'Blood-Tempered Plating',
+    cost: 220,
+    category: 'permanent_upgrade',
+    permanentUpgradeId: 'perm_blood_plating',
+    targetClass: 'all',
+    rarity: 'epic',
+    icon: 'Shield',
+    description: 'Heavy crimson alloy infused with warding blood-runes. Permanently grants +2 AC to heroes across all current and future runs. Retained on death.',
+    permanentUpgradeEffect: '+2 Armor Class (Permanent across all runs)',
+    statBonus: {
+      ac: 2
+    }
+  },
+  {
+    id: 'shop_perm_ancient_vitality',
+    name: 'Ancient Vitality Sigil',
+    cost: 200,
+    category: 'permanent_upgrade',
+    permanentUpgradeId: 'perm_ancient_vitality',
+    targetClass: 'all',
+    rarity: 'epic',
+    icon: 'Heart',
+    description: 'Imbued with the undying life-essence of ancient wardens. Permanently grants +10 Max HP across all runs. Retained on death.',
+    permanentUpgradeEffect: '+10 Maximum Hit Points (Permanent across all runs)',
+    statBonus: {
+      maxHp: 10
+    }
+  },
+  {
+    id: 'shop_perm_fleetfoot_boon',
+    name: 'Fleetfoot Instinct',
+    cost: 175,
+    category: 'permanent_upgrade',
+    permanentUpgradeId: 'perm_fleetfoot_boon',
+    targetClass: 'all',
+    rarity: 'rare',
+    icon: 'Footprints',
+    description: 'Uncanny stride honed on treacherous trails. Permanently grants +1 Movement Speed across all runs. Retained on death.',
+    permanentUpgradeEffect: '+1 Movement Speed (Permanent across all runs)',
+    statBonus: {
+      speed: 1
+    }
+  },
+  {
+    id: 'shop_perm_battle_focus',
+    name: 'Crimson Battle-Focus',
+    cost: 240,
+    category: 'permanent_upgrade',
+    permanentUpgradeId: 'perm_battle_focus',
+    targetClass: 'all',
+    rarity: 'epic',
+    icon: 'Crosshair',
+    description: 'Relentless combat discipline. Permanently grants +1 to all weapon attack hit rolls across all runs. Retained on death.',
+    permanentUpgradeEffect: '+1 Weapon Attack Hit Bonus (Permanent across all runs)',
+    statBonus: {
+      attackBonus: 1
+    }
+  },
+  {
+    id: 'shop_perm_debt_rebate',
+    name: 'Debt-Rebate Ward',
+    cost: 260,
+    category: 'permanent_upgrade',
+    permanentUpgradeId: 'perm_debt_rebate',
+    targetClass: 'all',
+    rarity: 'legendary',
+    icon: 'Coins',
+    description: 'Arcane banking ward safeguarding wealth against the abyss. Reduces gold lost upon death from 50% down to 25%. Retained on death.',
+    permanentUpgradeEffect: 'Halves death gold penalty (Retain 75% gold instead of 50%)'
+  },
+
+  // --- NARRATIVE ITEMS (NO COMBAT STATS, UNLOCKS TEXT & ENDINGS, RETAINED ON DEATH) ---
+  {
+    id: 'shop_memory_locket_ruins',
+    name: 'Faded Locket of the Ashen Ruins',
+    cost: 90,
+    category: 'memory_item',
+    memoryItemId: 'memory_locket_ruins',
+    targetClass: 'all',
+    rarity: 'rare',
+    icon: 'Sparkles',
+    description: 'Narrative Memory Item (No combat balance changes). A tarnished brass medallion with a child\'s likeness. Unlocks the hidden Act I Survivors Epilogue.',
+    narrativeUnlockSnippet: 'When you returned to the crossroads, the surviving family wept with relief, gifting you their ancestor\'s secret blessing and a safe passage through the hills.',
+    unlockedEndingTitle: 'Act I Revelation: Gratitude of the Displaced'
+  },
+  {
+    id: 'shop_memory_bandit_ledger',
+    name: "Bandit Leader's Cipher Ledger",
+    cost: 110,
+    category: 'memory_item',
+    memoryItemId: 'memory_bandit_ledger',
+    targetClass: 'all',
+    rarity: 'rare',
+    icon: 'FileText',
+    description: 'Narrative Memory Item (No combat balance changes). A coded journal detailing covert bribes by the merchant guild. Unlocks hidden negotiation dialogue in Act II.',
+    narrativeUnlockSnippet: 'Decoding the blotched ink reveals Malakar was never a mere cutthroat—he was hunting the same syndicate who destroyed your homeland.',
+    unlockedEndingTitle: 'Act II Revelation: The Trail of Dirty Gold'
+  },
+  {
+    id: 'shop_memory_arbiter_seal',
+    name: 'Seal of the High Arbiter',
+    cost: 140,
+    category: 'memory_item',
+    memoryItemId: 'memory_arbiter_seal',
+    targetClass: 'all',
+    rarity: 'legendary',
+    icon: 'Sun',
+    description: 'Narrative Memory Item (No combat balance changes). Wax seal bearing the sigil of the ancient Crimson Court. Unlocks the true "Debt Absolved" ending in Act III.',
+    narrativeUnlockSnippet: 'Holding the high magistrate\'s seal high, the courtroom guards lower their halberds. The Arbiter bows: "The debt is canceled by ancient right. You are free."',
+    unlockedEndingTitle: 'Act III Secret Ending: Debt Absolved & Legacy Restored'
+  },
+  {
+    id: 'shop_memory_tear_fallen',
+    name: 'Crystalline Tear of the Fallen',
+    cost: 95,
+    category: 'memory_item',
+    memoryItemId: 'memory_tear_fallen',
+    targetClass: 'all',
+    rarity: 'rare',
+    icon: 'Heart',
+    description: 'Narrative Memory Item (No combat balance changes). A sorrowful gem that whispers cold mist. Unlocks the solemn Chronicle of the Forgotten Souls.',
+    narrativeUnlockSnippet: 'A haunting melody whispers from the tear, preserving the names of the lost. The spirits grant you silent passage, remembering your compassion.',
+    unlockedEndingTitle: 'Chronicle Lore: Eulogy of the Forsaken'
+  },
 
   // --- SPECIAL CONQUEST REWARD ---
   {

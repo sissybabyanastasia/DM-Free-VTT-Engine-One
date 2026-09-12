@@ -9,6 +9,8 @@ import {
   ChestInstance,
   PrisonCellInstance,
   TreasureHoardInstance,
+  WarningSteleInstance,
+  RestPointInstance,
   GridTile
 } from '../types/schema';
 import { distance } from '../engine/monsterAI';
@@ -25,6 +27,7 @@ import {
   Check, 
   KeyRound, 
   Coins,
+  Scroll,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -39,7 +42,7 @@ interface DungeonGridProps {
   onSelectHero: (heroId: string) => void;
   onTileClick: (coord: GridCoordinate) => void;
   onMonsterClick: (monster: MonsterInstance) => void;
-  onInteractTarget: (type: 'chest' | 'trap' | 'pillar' | 'cell' | 'treasure_hoard', id?: string) => void;
+  onInteractTarget: (type: 'chest' | 'trap' | 'pillar' | 'cell' | 'treasure_hoard' | 'door' | 'potion' | 'stele' | 'rest_point', id?: string) => void;
 }
 
 export const DungeonGrid: React.FC<DungeonGridProps> = ({
@@ -133,6 +136,20 @@ export const DungeonGrid: React.FC<DungeonGridProps> = ({
     r.bossEncounter?.pillarsToDeactivate?.forEach(p => {
       pillarsByCoord.set(`${p.coordinate.x},${p.coordinate.y}`, p);
     });
+  });
+
+  const stelesByCoord = new Map<string, WarningSteleInstance>();
+  state.activeRooms.forEach(r => {
+    if (r.warningStele) {
+      stelesByCoord.set(`${r.warningStele.coordinate.x},${r.warningStele.coordinate.y}`, r.warningStele);
+    }
+  });
+
+  const restPointsByCoord = new Map<string, RestPointInstance>();
+  state.activeRooms.forEach(r => {
+    if (r.restPoint) {
+      restPointsByCoord.set(`${r.restPoint.coordinate.x},${r.restPoint.coordinate.y}`, r.restPoint);
+    }
   });
 
   // Center on coordinate with smooth scrolling
@@ -353,6 +370,8 @@ export const DungeonGrid: React.FC<DungeonGridProps> = ({
             const cellObj = cellsByCoord.get(key);
             const hoardObj = hoardsByCoord.get(key);
             const pillar = pillarsByCoord.get(key);
+            const stele = stelesByCoord.get(key);
+            const restPoint = restPointsByCoord.get(key);
 
             const isRevealed = tile?.isRevealed ?? false;
             const isEdge = tile?.kind === 'edge';
@@ -395,6 +414,39 @@ export const DungeonGrid: React.FC<DungeonGridProps> = ({
                     if (isAdjacentToHero && !hoardObj.isLooted) {
                       onInteractTarget('treasure_hoard', hoardObj.id);
                     } else if (isMoveTarget) {
+                      onTileClick(cell);
+                    }
+                  } else if (pillar) {
+                    if (isAdjacentToHero && !pillar.isDeactivated) {
+                      onInteractTarget('pillar');
+                    } else if (isMoveTarget) {
+                      onTileClick(cell);
+                    }
+                  } else if (stele) {
+                    if (isAdjacentToHero) {
+                      onInteractTarget('stele');
+                    } else if (isMoveTarget) {
+                      onTileClick(cell);
+                    }
+                  } else if (restPoint) {
+                    if (isAdjacentToHero && !restPoint.isUsed) {
+                      onInteractTarget('rest_point');
+                    } else if (isMoveTarget) {
+                      onTileClick(cell);
+                    }
+                  } else if (isEdge) {
+                    if (isAdjacentToHero && state.turnPhase === 'HERO_TURN' && activeHero && !activeHero.turnState.hasInteracted) {
+                      const isUntriggered = state.activeRooms.some(r => 
+                        r.edgeCoordinates.some(e => !e.isTriggered && e.coordinate.x === cell.x && e.coordinate.y === cell.y)
+                      );
+                      if (isUntriggered) {
+                        onInteractTarget('door');
+                        return;
+                      }
+                    }
+                    if (isMoveTarget) {
+                      onTileClick(cell);
+                    } else if (isRevealed && isWalkable) {
                       onTileClick(cell);
                     }
                   } else if (isMoveTarget) {
@@ -561,6 +613,52 @@ export const DungeonGrid: React.FC<DungeonGridProps> = ({
                     <Sparkles className="w-4 h-4 text-purple-400 drop-shadow-[0_0_10px_rgba(192,132,252,0.8)]" />
                     <span className="text-[7px] uppercase font-bold text-purple-300 font-mono">
                       {pillar.isDeactivated ? 'Broken' : 'Pillar'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Warning Stele (Death = Zero Returns) */}
+                {isRevealed && stele && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (dragDistance.current > 6) return;
+                      if (isAdjacentToHero) {
+                        onInteractTarget('stele');
+                      } else {
+                        onTileClick(cell);
+                      }
+                    }}
+                    className="relative z-10 flex flex-col items-center justify-center p-0.5 rounded transition-transform hover:scale-110 cursor-pointer text-rose-400 drop-shadow-[0_0_10px_rgba(244,63,94,0.6)]"
+                    title={`📜 ${stele.title}: Click to read ultimatum rules!`}
+                  >
+                    <Scroll className="w-4 h-4 text-rose-400 animate-pulse" />
+                    <span className="text-[7px] uppercase font-bold text-rose-300 font-mono tracking-tight text-center leading-none mt-0.5">
+                      Stele
+                    </span>
+                  </div>
+                )}
+
+                {/* Sanctuary Rest Altar */}
+                {isRevealed && restPoint && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (dragDistance.current > 6) return;
+                      if (isAdjacentToHero && !restPoint.isUsed) {
+                        onInteractTarget('rest_point');
+                      } else {
+                        onTileClick(cell);
+                      }
+                    }}
+                    className={`relative z-10 flex flex-col items-center justify-center p-0.5 rounded transition-transform hover:scale-110 cursor-pointer ${
+                      restPoint.isUsed ? 'opacity-40' : 'text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.7)]'
+                    }`}
+                    title={restPoint.isUsed ? 'Used Sanctuary Hearth' : `🕯️ ${restPoint.name}: Short Rest (+${restPoint.hpRestore} HP & Reset Cooldowns)`}
+                  >
+                    <Flame className={`w-4 h-4 ${restPoint.isUsed ? 'text-stone-500' : 'text-amber-400 animate-bounce'}`} />
+                    <span className="text-[7px] uppercase font-bold text-amber-300 font-mono tracking-tight text-center leading-none mt-0.5">
+                      {restPoint.isUsed ? 'Rest' : 'Hearth'}
                     </span>
                   </div>
                 )}
