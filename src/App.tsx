@@ -494,8 +494,7 @@ export default function App() {
         onClose={() => setIsCharacterImportModalOpen(false)}
         user={user}
         onCharacterImported={(data) => {
-          // For now, we just log it or you could add it to a party roster state
-          console.log("Imported character:", data);
+          engine.addImportedHero(data);
         }}
       />
     </div>

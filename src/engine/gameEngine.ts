@@ -100,10 +100,18 @@ export class TabletopGameEngine {
   private initializeState(modulePackage: ModulePackage): GameEngineState {
     // Deep clone rooms and heroes
     const clonedPackage: ModulePackage = JSON.parse(JSON.stringify(modulePackage));
-    const initialHeroes: HeroCharacter[] = JSON.parse(JSON.stringify(INITIAL_HERO_PARTY));
+    const isSolo = !!clonedPackage.isSoloOnly;
+    let initialHeroes: HeroCharacter[];
 
-    // Sort heroes strictly by initiative descending (Highest initiative acts first)
-    initialHeroes.sort((a, b) => b.initiative - a.initiative);
+    if (isSolo) {
+      // In solo-only mode, only the champion hero enters the Crucible
+      const fullParty: HeroCharacter[] = JSON.parse(JSON.stringify(INITIAL_HERO_PARTY));
+      initialHeroes = [fullParty[0]]; // Thorin the Champion Fighter
+    } else {
+      initialHeroes = JSON.parse(JSON.stringify(INITIAL_HERO_PARTY));
+      // Sort heroes strictly by initiative descending (Highest initiative acts first)
+      initialHeroes.sort((a, b) => b.initiative - a.initiative);
+    }
 
     const allTiles = new Map<string, GridTile>();
     
@@ -145,9 +153,11 @@ export class TabletopGameEngine {
     const initialLog: CombatLogEntry = {
       id: `log_init_${Date.now()}`,
       timestamp: new Date().toLocaleTimeString(),
-      source: 'Initiative Controller',
-      action: 'Turn Order Set',
-      detail: `Initiative Order established: 1. ${initialHeroes.map(h => `${h.name} (${h.initiative})`).join(' ➔ ')} ➔ Monsters (8). Round 1: ${activeHero.name} begins their turn (1 Move, 1 Action, 1 Interact).`,
+      source: isSolo ? 'Crucible Controller' : 'Initiative Controller',
+      action: isSolo ? 'Solo Trial Commenced' : 'Turn Order Set',
+      detail: isSolo 
+        ? `🔥 SOLO CRUCIBLE COMMENCED: ${activeHero.name} enters alone. Death = zero returns: all spoils collected during this trial are forfeit unless General Vaelok is defeated!`
+        : `Initiative Order established: 1. ${initialHeroes.map(h => `${h.name} (${h.initiative})`).join(' ➔ ')} ➔ Monsters (8). Round 1: ${activeHero.name} begins their turn (1 Move, 1 Action, 1 Interact).`,
       type: 'system'
     };
 
@@ -160,6 +170,8 @@ export class TabletopGameEngine {
       houndBossSpawned: false,
       houndBossDefeated: false
     };
+
+    const baseStartingGold = 120;
 
     return {
       currentModule: clonedPackage,
@@ -176,18 +188,22 @@ export class TabletopGameEngine {
       initiativeList,
       currentInitiativeIndex: 0,
       turnPrompt: initialPrompt,
-      partyGold: 120,
+      partyGold: baseStartingGold,
       canAccessShop: false, // Mandate: Heroes must defeat the Module Boss to unlock Town Shop & collect rewards!
       bossDefeated: false,
       houndEventState: initialHoundState,
       treasureChamberScenario: undefined,
+      isSoloExpedition: isSolo,
+      expeditionStartingGold: baseStartingGold,
+      expeditionLootCollected: [],
+      issuedVouchers: [],
       gameStats: {
         roomsExplored: 1,
         monstersSlain: 0,
         damageDealt: 0,
         trapsDisarmed: 0,
         chestsOpened: 0,
-        goldEarned: 120,
+        goldEarned: baseStartingGold,
         prisonersRescued: 0
       },
       isGameOver: false,
@@ -335,12 +351,27 @@ export class TabletopGameEngine {
 
       room.bossEncounter?.pillarsToDeactivate?.forEach(pillar => {
         if (!pillar.isDeactivated && distance(hero.position, pillar.coordinate) <= 1) {
+          const isVaelok = room.bossEncounter?.bossName?.includes('Vaelok');
           nearbyInteractables.push({
             type: 'pillar',
-            label: 'Crypt Pillar (Smash Bone Shield)'
+            label: isVaelok ? 'Blood Obelisk (Shatter Crimson Aegis)' : 'Crypt Pillar (Smash Bone Shield)'
           });
         }
       });
+
+      if (room.warningStele && distance(hero.position, room.warningStele.coordinate) <= 1) {
+        nearbyInteractables.push({
+          type: 'stele',
+          label: `Read ${room.warningStele.title} (Death = Zero Returns Rules)`
+        });
+      }
+
+      if (room.restPoint && !room.restPoint.isUsed && distance(hero.position, room.restPoint.coordinate) <= 1) {
+        nearbyInteractables.push({
+          type: 'rest_point',
+          label: `Take Short Rest at ${room.restPoint.name} (+${room.restPoint.hpRestore} HP & Reset Abilities)`
+        });
+      }
 
       room.prisonCells?.forEach(cell => {
         if (!cell.isUnlocked && distance(hero.position, cell.coordinate) <= 1) {
@@ -1049,14 +1080,7 @@ export class TabletopGameEngine {
           });
           const livingHeroes = this.state.heroes.filter(h => h.hp > 0);
           if (livingHeroes.length === 0) {
-            this.state.isGameOver = true;
-            this.state.turnPhase = 'DEFEAT';
-            this.addLog({
-              source: 'GAME OVER',
-              action: 'Party Defeated',
-              detail: '💀 All heroes have fallen in battle. The darkness claims the dungeon.',
-              type: 'boss'
-            });
+            this.triggerHeroDefeat('Succumbed to subterranean pitfall hazards.');
           }
         }
       }
@@ -1118,14 +1142,68 @@ export class TabletopGameEngine {
           });
           const livingHeroes = this.state.heroes.filter(h => h.hp > 0);
           if (livingHeroes.length === 0) {
-            this.state.isGameOver = true;
-            this.state.turnPhase = 'DEFEAT';
+            this.triggerHeroDefeat('Killed by ancient dungeon traps.');
           }
         }
       }
     }
 
     return halt;
+  }
+
+  /**
+   * Apply item damage multipliers such as Robe of Conquest-Red (+10%, rounded down).
+   */
+  public applyDamageMultiplier(hero: HeroCharacter, baseDamage: number): { finalDamage: number; bonus: number } {
+    const hasRobeOfConquest = hero.inventory.some(i => i.id === 'robe_of_conquest_red' || i.id === 'shop_robe_conquest_red');
+    if (hasRobeOfConquest && baseDamage > 0) {
+      const bonus = Math.floor(baseDamage * 0.10);
+      return { finalDamage: baseDamage + bonus, bonus };
+    }
+    return { finalDamage: baseDamage, bonus: 0 };
+  }
+
+  /**
+   * Trigger hero defeat and enforce "Death = Zero Returns" in Solo Crucible.
+   */
+  private triggerHeroDefeat(reason?: string) {
+    this.state.isGameOver = true;
+    this.state.turnPhase = 'DEFEAT';
+
+    if (this.state.isSoloExpedition) {
+      // DEATH = ZERO RETURNS ENFORCEMENT
+      const lostLootCount = this.state.expeditionLootCollected?.length || 0;
+      const startingGold = this.state.expeditionStartingGold ?? 120;
+      const lostGold = Math.max(0, this.state.partyGold - startingGold);
+
+      // Revert party gold to starting baseline
+      this.state.partyGold = startingGold;
+
+      // Strip collected expedition items from heroes' inventory
+      if (this.state.expeditionLootCollected && this.state.expeditionLootCollected.length > 0) {
+        const lostIds = new Set(this.state.expeditionLootCollected.map(l => l.id));
+        this.state.heroes.forEach(h => {
+          h.inventory = h.inventory.filter(item => !lostIds.has(item.id));
+        });
+        this.state.expeditionLootCollected = [];
+      }
+
+      this.addLog({
+        source: 'CRUCIBLE RULES ENFORCEMENT',
+        action: '💀 Death = Zero Returns Penalty Enforced!',
+        detail: `💀 DEATH = ZERO RETURNS: The champion has fallen! All expedition spoils are forfeited to the dungeon (-${lostGold} GP forfeited, ${lostLootCount} item(s) lost). Party gold restored to baseline ${startingGold} GP.`,
+        type: 'boss'
+      });
+      this.state.turnNotice = `💀 CRUCIBLE DEFEAT: Death = Zero Returns! All ${lostGold} GP and ${lostLootCount} item(s) collected on this expedition have been lost to the abyss!`;
+    } else {
+      this.addLog({
+        source: 'GAME OVER',
+        action: 'Party Defeated',
+        detail: `💀 All heroes have fallen in battle. ${reason || 'The darkness claims the dungeon.'}`,
+        type: 'boss'
+      });
+      this.state.turnNotice = '💀 All heroes have fallen in battle! Restart crawl or restore a saved session.';
+    }
   }
 
   /**
@@ -1167,12 +1245,18 @@ export class TabletopGameEngine {
         const activePillars = bossRoom.bossEncounter.pillarsToDeactivate.filter(p => !p.isDeactivated).length;
         if (activePillars > 0) {
           hero.turnState.actionsRemaining -= 1;
+          const isVaelok = monster.name.includes('Vaelok') || bossRoom.bossEncounter.bossName?.includes('Vaelok');
           this.addLog({
             source: hero.name,
-            action: 'Attack Deflected by Bone Aegis!',
-            detail: `🛡️ ${hero.name}'s ${weapon.name} struck Malakor, but bounced harmlessly off his Bone Shield! (You must deactivate both Crypt Pillars first via Interact action!)`,
+            action: isVaelok ? 'Attack Deflected by Crimson Aegis!' : 'Attack Deflected by Bone Aegis!',
+            detail: isVaelok 
+              ? `🛡️ ${hero.name}'s ${weapon.name} struck General Vaelok, but glanced harmlessly off his Crimson Aegis! (Shatter both Blood Obelisks first via Interact action!)`
+              : `🛡️ ${hero.name}'s ${weapon.name} struck Malakor, but bounced harmlessly off his Bone Shield! (You must deactivate both Crypt Pillars first via Interact action!)`,
             type: 'boss'
           });
+          this.state.turnNotice = isVaelok 
+            ? `🛡️ DEFLECTED: General Vaelok is shielded by Blood Obelisks! Shatter both obelisks first!`
+            : `🛡️ DEFLECTED: Malakor is protected by Crypt Pillars! Deactivate pillars first!`;
           this.notify();
           return true;
         }
@@ -1198,17 +1282,40 @@ export class TabletopGameEngine {
         totalDamage += rollDice('1d8').total;
       }
 
+      // Check Robe of Conquest-Red: All damage dealt +10%, rounded down
+      const { finalDamage, bonus: robeBonus } = this.applyDamageMultiplier(hero, totalDamage);
+      totalDamage = finalDamage;
+
       monster.hp = Math.max(0, monster.hp - totalDamage);
       this.state.gameStats.damageDealt += totalDamage;
+
+      const robeDetail = robeBonus > 0 ? ` (+${robeBonus} Robe of Conquest bonus [+10%])` : '';
 
       this.addLog({
         source: hero.name,
         action: `Attack (${weapon.name})`,
-        detail: `🎲 Rolled ${atkRoll.d20} + ${atkRoll.modifier} = ${atkRoll.total} vs AC ${monster.ac} (${isCrit ? 'CRITICAL HIT!' : 'HIT!'}) dealing ${totalDamage} ${weapon.damageType} damage to ${monster.name}! [${monster.hp}/${monster.maxHp} HP]`,
+        detail: `🎲 Rolled ${atkRoll.d20} + ${atkRoll.modifier} = ${atkRoll.total} vs AC ${monster.ac} (${isCrit ? 'CRITICAL HIT!' : 'HIT!'}) dealing ${totalDamage}${robeDetail} ${weapon.damageType} damage to ${monster.name}! [${monster.hp}/${monster.maxHp} HP]`,
         roll: atkRoll,
         damage: { amount: totalDamage, type: weapon.damageType },
         type: 'damage'
       });
+
+      // General Vaelok Phase 2: Blood-Rage transition at <= 50% HP (19 HP)
+      if ((monster.id === 'boss_vaelok' || monster.name.includes('Vaelok')) && monster.hp <= 19 && monster.hp > 0) {
+        const bossRoom = this.state.activeRooms.find(r => r.bossEncounter?.bossMonsterId === monster.id);
+        if (bossRoom?.bossEncounter && (!bossRoom.bossEncounter.currentPhase || bossRoom.bossEncounter.currentPhase === 1)) {
+          bossRoom.bossEncounter.currentPhase = 2;
+          monster.ac = 13;
+          monster.speed = 6;
+          this.addLog({
+            source: monster.name,
+            action: '🔥 Phase 2: Crimson Blood-Rage!',
+            detail: `🔥 General Vaelok enters Blood-Rage! He discards his tower shield, boosting speed to 6 squares, lowering AC to 13, and igniting his blade with fire damage!`,
+            type: 'boss'
+          });
+          this.state.turnNotice = `🔥 BOSS PHASE 2: General Vaelok enters Blood-Rage! Speed increased to 6 squares!`;
+        }
+      }
 
       if (monster.hp <= 0) {
         this.handleMonsterDeath(monster);
@@ -1274,17 +1381,19 @@ export class TabletopGameEngine {
         .filter(m => m.isAlive && distance(hero.position, m.position) <= (ability.range || 1))
         .sort((a, b) => distance(hero.position, a.position) - distance(hero.position, b.position))[0];
       if (targetMonster) {
-        const dmg = rollDice(ability.damageDice || '1d6+3');
-        targetMonster.hp = Math.max(0, targetMonster.hp - dmg.total);
+        const rawDmg = rollDice(ability.damageDice || '1d6+3');
+        const { finalDamage, bonus } = this.applyDamageMultiplier(hero, rawDmg.total);
+        targetMonster.hp = Math.max(0, targetMonster.hp - finalDamage);
         const dx = Math.sign(targetMonster.position.x - hero.position.x);
         const dy = Math.sign(targetMonster.position.y - hero.position.y);
         targetMonster.position = { x: targetMonster.position.x + (dx || 1), y: targetMonster.position.y + dy };
 
+        const bonusTxt = bonus > 0 ? ` (+${bonus} Robe bonus [+10%])` : '';
         this.addLog({
           source: hero.name,
           action: 'Shield Bash',
-          detail: `🛡️ ${hero.name} slams heavy shield into ${targetMonster.name} for ${dmg.total} bludgeoning damage and knocks them back! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
-          damage: { amount: dmg.total, type: 'bludgeoning' },
+          detail: `🛡️ ${hero.name} slams heavy shield into ${targetMonster.name} for ${finalDamage}${bonusTxt} bludgeoning damage and knocks them back! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
+          damage: { amount: finalDamage, type: 'bludgeoning' },
           type: 'damage'
         });
         if (targetMonster.hp <= 0) {
@@ -1303,13 +1412,15 @@ export class TabletopGameEngine {
         .filter(m => m.isAlive && distance(hero.position, m.position) <= (ability.range || 5))
         .sort((a, b) => distance(hero.position, a.position) - distance(hero.position, b.position))[0];
       if (targetMonster) {
-        const dmg = rollDice(ability.damageDice || '2d6+3');
-        targetMonster.hp = Math.max(0, targetMonster.hp - dmg.total);
+        const rawDmg = rollDice(ability.damageDice || '2d6+3');
+        const { finalDamage, bonus } = this.applyDamageMultiplier(hero, rawDmg.total);
+        targetMonster.hp = Math.max(0, targetMonster.hp - finalDamage);
+        const bonusTxt = bonus > 0 ? ` (+${bonus} Robe bonus [+10%])` : '';
         this.addLog({
           source: hero.name,
           action: 'Shadow Snipe (Sneak Attack)',
-          detail: `🎯 ${hero.name} looses an arrow directly into ${targetMonster.name}'s weak point for ${dmg.total} piercing damage! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
-          damage: { amount: dmg.total, type: 'piercing' },
+          detail: `🎯 ${hero.name} looses an arrow directly into ${targetMonster.name}'s weak point for ${finalDamage}${bonusTxt} piercing damage! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
+          damage: { amount: finalDamage, type: 'piercing' },
           type: 'damage'
         });
         if (targetMonster.hp <= 0) {
@@ -1321,13 +1432,15 @@ export class TabletopGameEngine {
         .filter(m => m.isAlive && distance(hero.position, m.position) <= (ability.range || 5))
         .sort((a, b) => distance(hero.position, a.position) - distance(hero.position, b.position))[0];
       if (targetMonster) {
-        const dmg = rollDice(ability.damageDice || '1d10+1');
-        targetMonster.hp = Math.max(0, targetMonster.hp - dmg.total);
+        const rawDmg = rollDice(ability.damageDice || '1d10+1');
+        const { finalDamage, bonus } = this.applyDamageMultiplier(hero, rawDmg.total);
+        targetMonster.hp = Math.max(0, targetMonster.hp - finalDamage);
+        const bonusTxt = bonus > 0 ? ` (+${bonus} Robe bonus [+10%])` : '';
         this.addLog({
           source: hero.name,
           action: 'Firebolt Cantrip',
-          detail: `🔥 ${hero.name} hurls an arcane firebolt at ${targetMonster.name} dealing ${dmg.total} fire damage! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
-          damage: { amount: dmg.total, type: 'fire' },
+          detail: `🔥 ${hero.name} hurls an arcane firebolt at ${targetMonster.name} dealing ${finalDamage}${bonusTxt} fire damage! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
+          damage: { amount: finalDamage, type: 'fire' },
           type: 'damage'
         });
         if (targetMonster.hp <= 0) {
@@ -1339,13 +1452,15 @@ export class TabletopGameEngine {
         .filter(m => m.isAlive && distance(hero.position, m.position) <= (ability.range || 5))
         .sort((a, b) => distance(hero.position, a.position) - distance(hero.position, b.position))[0];
       if (targetMonster) {
-        const dmg = rollDice(ability.damageDice || '1d8+1');
-        targetMonster.hp = Math.max(0, targetMonster.hp - dmg.total);
+        const rawDmg = rollDice(ability.damageDice || '1d8+1');
+        const { finalDamage, bonus } = this.applyDamageMultiplier(hero, rawDmg.total);
+        targetMonster.hp = Math.max(0, targetMonster.hp - finalDamage);
+        const bonusTxt = bonus > 0 ? ` (+${bonus} Robe bonus [+10%])` : '';
         this.addLog({
           source: hero.name,
           action: 'Sacred Flame Cantrip',
-          detail: `☀️ Radiant light descends upon ${targetMonster.name} for ${dmg.total} radiant damage! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
-          damage: { amount: dmg.total, type: 'radiant' },
+          detail: `☀️ Radiant light descends upon ${targetMonster.name} for ${finalDamage}${bonusTxt} radiant damage! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
+          damage: { amount: finalDamage, type: 'radiant' },
           type: 'damage'
         });
         if (targetMonster.hp <= 0) {
@@ -1356,13 +1471,15 @@ export class TabletopGameEngine {
       // Find nearest living monster
       const targetMonster = this.getActiveMonsters().filter(m => m.isAlive).sort((a, b) => distance(hero.position, a.position) - distance(hero.position, b.position))[0];
       if (targetMonster) {
-        const dmg = rollDice('3d4+3');
-        targetMonster.hp = Math.max(0, targetMonster.hp - dmg.total);
+        const rawDmg = rollDice('3d4+3');
+        const { finalDamage, bonus } = this.applyDamageMultiplier(hero, rawDmg.total);
+        targetMonster.hp = Math.max(0, targetMonster.hp - finalDamage);
+        const bonusTxt = bonus > 0 ? ` (+${bonus} Robe bonus [+10%])` : '';
         this.addLog({
           source: hero.name,
           action: 'Magic Missile (Unerring Force)',
-          detail: `🔮 3 luminous force darts streak infallibly into ${targetMonster.name} for ${dmg.total} force damage! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
-          damage: { amount: dmg.total, type: 'force' },
+          detail: `🔮 3 luminous force darts streak infallibly into ${targetMonster.name} for ${finalDamage}${bonusTxt} force damage! [${targetMonster.hp}/${targetMonster.maxHp} HP]`,
+          damage: { amount: finalDamage, type: 'force' },
           type: 'damage'
         });
         if (targetMonster.hp <= 0) {
@@ -1379,13 +1496,15 @@ export class TabletopGameEngine {
         type: 'damage'
       });
       monstersInBlast.forEach(m => {
-        const dmg = rollDice('3d6');
-        m.hp = Math.max(0, m.hp - dmg.total);
+        const rawDmg = rollDice('3d6');
+        const { finalDamage, bonus } = this.applyDamageMultiplier(hero, rawDmg.total);
+        m.hp = Math.max(0, m.hp - finalDamage);
+        const bonusTxt = bonus > 0 ? ` (+${bonus} Robe bonus [+10%])` : '';
         this.addLog({
           source: hero.name,
           action: 'Burning Hands Strike',
-          detail: `🔥 ${m.name} scorched for ${dmg.total} fire damage! [${m.hp}/${m.maxHp} HP]`,
-          damage: { amount: dmg.total, type: 'fire' },
+          detail: `🔥 ${m.name} scorched for ${finalDamage}${bonusTxt} fire damage! [${m.hp}/${m.maxHp} HP]`,
+          damage: { amount: finalDamage, type: 'fire' },
           type: 'damage'
         });
         if (m.hp <= 0) {
@@ -1399,9 +1518,9 @@ export class TabletopGameEngine {
   }
 
   /**
-   * Hero Interact Action: Open Chest, Disarm Trap, Deactivate Pillar, Drink Potion, Door
+   * Hero Interact Action: Open Chest, Disarm Trap, Deactivate Pillar, Drink Potion, Door, Stele, Rest Point
    */
-  public executeInteract(targetType: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard', targetId?: string): boolean {
+  public executeInteract(targetType: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard' | 'stele' | 'rest_point', targetId?: string): boolean {
     const hero = this.state.heroes[this.state.activeHeroIndex];
     if (!hero || hero.hp <= 0 || hero.turnState.interactsRemaining <= 0) return false;
 
@@ -1425,13 +1544,75 @@ export class TabletopGameEngine {
           const lootNames = chest.loot.map(l => `${l.name} (${l.rarity})`).join(', ');
           hero.inventory.push(...chest.loot);
 
+          // In solo mode, track expedition-collected loot
+          if (this.state.isSoloExpedition) {
+            if (!this.state.expeditionLootCollected) this.state.expeditionLootCollected = [];
+            this.state.expeditionLootCollected.push(...chest.loot);
+          }
+
           this.addLog({
             source: hero.name,
             action: 'Chest Opened',
-            detail: `🎁 Opened ornate chest! Found +${goldReward} GP and discovered: ${lootNames}. Items & gold added to party pouch!`,
+            detail: `🎁 Opened ornate chest! Found +${goldReward} GP and discovered: ${lootNames}. Items & gold added to hero's pack!`,
             type: 'system'
           });
           this.state.turnNotice = `🎁 Chest Opened! +${goldReward} Gold Coins and ${chest.loot.length} item(s) collected!`;
+          this.updateTurnPrompt();
+          this.notify();
+          return true;
+        }
+      }
+    } else if (targetType === 'stele') {
+      // Examine Blood Stele of the Crucible
+      for (const room of this.state.activeRooms) {
+        const stele = room.interactableObjects?.find(obj => obj.type === 'stele' && !obj.isUsed && distance(hero.position, obj.coordinate) <= 1);
+        if (stele) {
+          hero.turnState.interactsRemaining = 0;
+          hero.turnState.hasInteracted = true;
+          stele.isUsed = true;
+
+          // Grant tactical warding blessing
+          hero.turnState.statusEffects.push({
+            id: 'crucible_resolve',
+            name: 'Crucible Resolve',
+            type: 'buff',
+            durationTurns: 5,
+            description: 'Carved runes steel your mind against fear. +1 AC and +2 on Attack rolls.',
+            statModifiers: { ac: 1, attackRollBonus: 2 }
+          });
+
+          this.addLog({
+            source: hero.name,
+            action: 'Deciphered Ancient Stele',
+            detail: `📜 "ONLY THE CONQUEROR BEARS THE RED MANTLE. DEATH STRIPS ALL SPOILS." Ancient crimson runes pulse with determination! ${hero.name} gains Crucible Resolve (+1 AC, +2 Attack for 5 turns)!`,
+            type: 'system'
+          });
+          this.state.turnNotice = `📜 Runes Deciphered: "Death = Zero Returns". ${hero.name} gained Crucible Resolve (+1 AC, +2 Atk)!`;
+          this.updateTurnPrompt();
+          this.notify();
+          return true;
+        }
+      }
+    } else if (targetType === 'rest_point') {
+      // Rest at Sanctuary Rest Point
+      for (const room of this.state.activeRooms) {
+        const rest = room.interactableObjects?.find(obj => obj.type === 'rest_point' && !obj.isUsed && distance(hero.position, obj.coordinate) <= 1);
+        if (rest) {
+          hero.turnState.interactsRemaining = 0;
+          hero.turnState.hasInteracted = true;
+          rest.isUsed = true;
+
+          const healAmount = Math.min(hero.maxHp - hero.hp, 14);
+          hero.hp = Math.min(hero.maxHp, hero.hp + healAmount);
+          hero.abilities.forEach(a => { a.currentCooldown = 0; });
+
+          this.addLog({
+            source: hero.name,
+            action: 'Sanctuary Rest (Dawn Altar)',
+            detail: `🕯️ The warm light of the Dawn Altar revives the weary champion! Recovered +${healAmount} HP [${hero.hp}/${hero.maxHp}] and all tactical abilities are fully refreshed!`,
+            type: 'heal'
+          });
+          this.state.turnNotice = `🕯️ Sanctuary Rest: Recovered +${healAmount} HP and refreshed all cooldowns!`;
           this.updateTurnPrompt();
           this.notify();
           return true;
@@ -1530,7 +1711,7 @@ export class TabletopGameEngine {
         }
       }
     } else if (targetType === 'pillar') {
-      // Deactivate boss pillar
+      // Deactivate boss pillar / Blood Obelisk
       for (const room of this.state.activeRooms) {
         if (room.bossEncounter?.pillarsToDeactivate) {
           const pillar = room.bossEncounter.pillarsToDeactivate.find(p => !p.isDeactivated && distance(hero.position, p.coordinate) <= 1);
@@ -1540,11 +1721,14 @@ export class TabletopGameEngine {
             pillar.isDeactivated = true;
 
             const remaining = room.bossEncounter.pillarsToDeactivate.filter(p => !p.isDeactivated).length;
+            const isVaelok = room.bossEncounter.bossMonsterId === 'boss_vaelok' || room.bossEncounter.bossName?.includes('Vaelok');
 
             this.addLog({
               source: hero.name,
-              action: 'Crypt Pillar Smashed!',
-              detail: `⚡ Smashed dark resonant Crypt Pillar! ${remaining > 0 ? `${remaining} pillar(s) remain before Malakor's shield falls.` : `🎉 ALL PILLARS SMASHED! Malakor's Bone Shield has shattered! He is now vulnerable to attacks!`}`,
+              action: isVaelok ? 'Blood Obelisk Shattered!' : 'Crypt Pillar Smashed!',
+              detail: isVaelok 
+                ? `⚡ Shattered resonance Blood Obelisk! ${remaining > 0 ? `${remaining} obelisk(s) remain before General Vaelok's Crimson Aegis falls.` : `🎉 ALL BLOOD OBELISKS SHATTERED! General Vaelok's Crimson Aegis has collapsed! He is now vulnerable to attacks!`}`
+                : `⚡ Smashed dark resonant Crypt Pillar! ${remaining > 0 ? `${remaining} pillar(s) remain before Malakor's shield falls.` : `🎉 ALL PILLARS SMASHED! Malakor's Bone Shield has shattered! He is now vulnerable to attacks!`}`,
               type: 'boss'
             });
             this.updateTurnPrompt();
@@ -1635,14 +1819,7 @@ export class TabletopGameEngine {
     // Check party wipe
     const livingHeroes = this.state.heroes.filter(h => h.hp > 0);
     if (livingHeroes.length === 0) {
-      this.state.isGameOver = true;
-      this.state.turnPhase = 'DEFEAT';
-      this.addLog({
-        source: 'GAME OVER',
-        action: 'Party Defeated',
-        detail: '💀 All heroes have fallen in battle. The darkness claims the dungeon.',
-        type: 'boss'
-      });
+      this.triggerHeroDefeat('Slain by dungeon monsters.');
       this.notify();
       return;
     }
@@ -1852,10 +2029,12 @@ export class TabletopGameEngine {
       monster.id === 'boss_malakor' ||
       monster.id === 'boss_broodmother' ||
       monster.id === 'boss_valgoth' ||
+      monster.id === 'boss_vaelok' ||
       monster.id.includes('malakor') ||
       monster.id.includes('broodmother') ||
       monster.id.includes('shelob') ||
       monster.id.includes('valgoth') ||
+      monster.id.includes('vaelok') ||
       monster.ai.behaviorType === 'boss_phased'
     );
 
@@ -1870,7 +2049,7 @@ export class TabletopGameEngine {
         this.state.turnPhase = 'VICTORY';
         this.state.canAccessShop = true; // Shop mandate unlocked upon defeating the boss!
 
-        const moduleVictoryBounty = 350;
+        const moduleVictoryBounty = this.state.currentModule.id === 'mod_crimson_crucible' ? 450 : 350;
         this.state.partyGold += moduleVictoryBounty;
         this.state.gameStats.goldEarned += moduleVictoryBounty;
 
@@ -1879,6 +2058,51 @@ export class TabletopGameEngine {
           if (h.hp > 0) h.hp = h.maxHp;
           h.abilities.forEach(a => { a.currentCooldown = 0; });
         });
+
+        // Issue Voucher if module has completionRewards
+        if (this.state.currentModule.completionRewards?.voucherId) {
+          const voucher = {
+            id: `voucher_${Date.now()}`,
+            code: `CRUCIBLE-WIN-${Date.now().toString(36).toUpperCase()}`,
+            moduleId: this.state.currentModule.id,
+            voucherId: this.state.currentModule.completionRewards.voucherId,
+            redeemableItem: this.state.currentModule.completionRewards.unlocksShopItem,
+            isRedeemed: false,
+            issuedAt: new Date().toISOString()
+          };
+          if (!this.state.issuedVouchers) this.state.issuedVouchers = [];
+          this.state.issuedVouchers.push(voucher);
+
+          const hero = this.state.heroes[0];
+          if (hero) {
+            hero.inventory.push({
+              id: voucher.voucherId,
+              name: 'Crucible Triumph Voucher',
+              type: 'quest',
+              description: 'Official seal of victory over the Crimson Crucible. Redeemable at the Town Outfitter for the Robe of Conquest-Red!',
+              rarity: 'legendary',
+              quantity: 1
+            });
+          }
+
+          this.addLog({
+            source: 'VOUCHER ISSUANCE',
+            action: 'Crucible Voucher Awarded!',
+            detail: `🎟️ PROOF OF CONQUEST: Issued Crucible Triumph Voucher [${voucher.code}]! Present this voucher at the Town Outfitter to redeem the Robe of Conquest-Red!`,
+            type: 'boss'
+          });
+        }
+
+        // Settle solo expedition
+        if (this.state.isSoloExpedition) {
+          const lootCount = this.state.expeditionLootCollected?.length || 0;
+          this.addLog({
+            source: 'SETTLEMENT ENGINE',
+            action: 'Crucible Expedition Settled (Victory)',
+            detail: `👑 SOLO EXPEDITION CLEAR: The lone champion has conquered the Crimson Crucible! All ${lootCount} collected items and ${this.state.partyGold} GP have been safely secured.`,
+            type: 'boss'
+          });
+        }
 
         this.addLog({
           source: 'VICTORY MANDATE',
@@ -2126,6 +2350,127 @@ export class TabletopGameEngine {
     });
 
     this.state.turnNotice = `🔥 THE PORTCULLIS HAS SEALED! You are trapped in the Vault! Ignis the Gilded Wyrm (34 HP, AC 13) attacks! Defeat the dragon to break the portcullis!`;
+  }
+
+  /**
+   * Instantiate and add a validated custom character token into the tactical party.
+   */
+  public addImportedHero(data: {
+    name: string;
+    characterClass: string;
+    level: number;
+    abilities: {
+      strength: number;
+      dexterity: number;
+      constitution: number;
+      intelligence: number;
+      wisdom: number;
+      charisma: number;
+    };
+  }): HeroCharacter {
+    const rawClass = (data.characterClass || 'fighter').toLowerCase();
+    const classType: 'fighter' | 'wizard' | 'rogue' | 'cleric' = 
+      rawClass.includes('wiz') || rawClass.includes('sorc') || rawClass.includes('mage') ? 'wizard' :
+      rawClass.includes('rogue') || rawClass.includes('ranger') || rawClass.includes('monk') ? 'rogue' :
+      rawClass.includes('cleric') || rawClass.includes('paladin') || rawClass.includes('druid') ? 'cleric' : 'fighter';
+
+    const conMod = Math.floor(((data.abilities?.constitution || 10) - 10) / 2);
+    const dexMod = Math.floor(((data.abilities?.dexterity || 10) - 10) / 2);
+    const strMod = Math.floor(((data.abilities?.strength || 10) - 10) / 2);
+    const intMod = Math.floor(((data.abilities?.intelligence || 10) - 10) / 2);
+    const wisMod = Math.floor(((data.abilities?.wisdom || 10) - 10) / 2);
+
+    const hitDie = classType === 'fighter' ? 10 : classType === 'cleric' ? 8 : classType === 'rogue' ? 8 : 6;
+    const baseHp = hitDie + conMod + Math.max(0, (data.level - 1) * (Math.floor(hitDie / 2) + 1 + conMod));
+    const maxHp = Math.max(10, baseHp);
+    const ac = classType === 'fighter' ? 16 : classType === 'cleric' ? 15 : classType === 'rogue' ? 14 + Math.min(2, dexMod) : 11 + dexMod;
+
+    const firstHero = this.state.heroes[0];
+    const currentRoom = this.state.activeRooms[0];
+    const walkableTiles = currentRoom?.tiles.filter(t => t.walkable && t.kind !== 'wall') || [];
+    const occupied = new Set(this.state.heroes.map(h => `${h.position.x},${h.position.y}`));
+    const spawnTile = walkableTiles.find(t => !occupied.has(`${t.x},${t.y}`)) || (firstHero ? { x: firstHero.position.x, y: firstHero.position.y } : { x: 2, y: 3 });
+
+    const newHero: HeroCharacter = {
+      id: `hero_custom_${Date.now()}`,
+      name: data.name,
+      classType,
+      hp: maxHp,
+      maxHp,
+      ac,
+      speed: 6,
+      initiative: 10 + dexMod,
+      position: { x: spawnTile.x, y: spawnTile.y },
+      portrait: classType === 'fighter' ? '🛡️' : classType === 'wizard' ? '🧙' : classType === 'rogue' ? '🗡️' : '✨',
+      color: classType === 'fighter' ? '#3b82f6' : classType === 'wizard' ? '#a855f7' : classType === 'rogue' ? '#eab308' : '#10b981',
+      turnState: {
+        moveRemaining: 6,
+        maxMove: 6,
+        hasMoved: false,
+        actionsRemaining: 1,
+        hasActed: false,
+        interactsRemaining: 1,
+        hasInteracted: false,
+        bonusActionsRemaining: 1,
+        hasDashed: false,
+        statusEffects: []
+      },
+      weapons: classType === 'fighter' ? [
+        { id: `w_${Date.now()}_1`, name: 'Bastard Sword', range: 1, attackBonus: 3 + strMod, damageDice: '1d10+3', damageType: 'slashing', description: 'Heavy forged steel blade.' },
+        { id: `w_${Date.now()}_2`, name: 'Javelin', range: 4, attackBonus: 2 + strMod, damageDice: '1d6+2', damageType: 'piercing', description: 'Throwing spear.' }
+      ] : classType === 'wizard' ? [
+        { id: `w_${Date.now()}_1`, name: 'Arcane Quarterstaff', range: 1, attackBonus: 1 + strMod, damageDice: '1d6+1', damageType: 'bludgeoning', description: 'Carved runes.' },
+        { id: `w_${Date.now()}_2`, name: 'Ray of Frost', range: 5, attackBonus: 3 + intMod, damageDice: '1d8', damageType: 'force', description: 'Freezing blast.' }
+      ] : classType === 'rogue' ? [
+        { id: `w_${Date.now()}_1`, name: 'Stiletto Rapier', range: 1, attackBonus: 3 + dexMod, damageDice: '1d8+3', damageType: 'piercing', description: 'Precision needle point.' },
+        { id: `w_${Date.now()}_2`, name: 'Recurve Bow', range: 5, attackBonus: 3 + dexMod, damageDice: '1d6+3', damageType: 'piercing', description: 'Silent composite bow.' }
+      ] : [
+        { id: `w_${Date.now()}_1`, name: 'Warhammer of Light', range: 1, attackBonus: 3 + strMod, damageDice: '1d8+2', damageType: 'bludgeoning', description: 'Blessed war hammer.' },
+        { id: `w_${Date.now()}_2`, name: 'Sacred Bolt', range: 4, attackBonus: 3 + wisMod, damageDice: '1d8', damageType: 'radiant', description: 'Sunburst.' }
+      ],
+      abilities: [
+        {
+          id: classType === 'fighter' ? 'ab_action_surge' : classType === 'wizard' ? 'ab_magic_missile' : classType === 'rogue' ? 'ab_sneak_attack' : 'ab_cleric_heal',
+          name: classType === 'fighter' ? 'Shield Bash' : classType === 'wizard' ? 'Magic Missile' : classType === 'rogue' ? 'Shadow Snipe' : 'Prayer of Healing',
+          actionCost: 'action',
+          cooldownTurns: 2,
+          currentCooldown: 0,
+          range: classType === 'fighter' ? 1 : 5,
+          damageDice: classType === 'fighter' ? '1d6+3' : classType === 'wizard' ? '3d4+3' : '2d6+3',
+          healAmount: classType === 'cleric' ? '2d8+3' : undefined,
+          description: 'Special class prowess.',
+          icon: '⚡'
+        }
+      ],
+      inventory: [
+        { id: `inv_pot_${Date.now()}`, name: 'Potion of Healing', type: 'consumable', rarity: 'common', description: 'Restores 2d4+2 HP.', effect: 'heal_2d4_2', quantity: 1 }
+      ]
+    };
+
+    this.state.heroes.push(newHero);
+    this.state.initiativeList.push({
+      id: newHero.id,
+      name: newHero.name,
+      type: 'hero',
+      initiative: newHero.initiative,
+      portrait: newHero.portrait,
+      isCurrentTurn: false,
+      isDone: false,
+      isAlive: true
+    });
+    this.state.initiativeList.sort((a, b) => b.initiative - a.initiative);
+
+    this.addLog({
+      source: 'Character Roster',
+      action: 'Custom Character Imported!',
+      detail: `✨ ${newHero.name} (Lvl ${data.level} ${data.characterClass}) joined the expedition! Validated via Ajv Schema. Token placed on the grid.`,
+      type: 'system'
+    });
+    this.state.turnNotice = `✨ Imported Character: ${newHero.name} (${data.characterClass}, Lvl ${data.level}) token added!`;
+
+    this.updateTurnPrompt();
+    this.notify();
+    return newHero;
   }
 
   private addLog(entry: Omit<CombatLogEntry, 'id' | 'timestamp'> & { id?: string; timestamp?: string }) {

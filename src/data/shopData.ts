@@ -252,5 +252,27 @@ export const TOWN_SHOP_ITEMS: ShopItem[] = [
       description: 'Hurled projectile dealing 3d6 fire damage to a target.',
       quantity: 1
     }
+  },
+
+  // --- SPECIAL CONQUEST REWARD ---
+  {
+    id: 'shop_robe_conquest_red',
+    name: 'Robe of Conquest-Red',
+    cost: 0,
+    voucherCostId: 'voucher_robe_of_conquest_red',
+    category: 'armor',
+    targetClass: 'all',
+    rarity: 'legendary',
+    icon: 'Flame',
+    description: 'Consecrated crimson vestment of the Solo Crucible. Effect: All damage dealt +10%, rounded down to nearest whole number. Requires [Voucher: Robe of Conquest-Red] earned by surviving the Solo Crucible!',
+    consumableItem: {
+      id: 'robe_of_conquest_red',
+      name: 'Robe of Conquest-Red',
+      type: 'armor',
+      rarity: 'legendary',
+      description: 'All damage dealt +10%, rounded down to nearest whole number.',
+      effect: 'damage_multiplier_1_10',
+      quantity: 1
+    }
   }
 ];

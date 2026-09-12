@@ -107,7 +107,7 @@ export interface ClassAbility {
 export interface InventoryItem {
   id: string;
   name: string;
-  type: 'consumable' | 'weapon' | 'armor' | 'legendary_artifact' | 'quest';
+  type: 'consumable' | 'weapon' | 'armor' | 'legendary_artifact' | 'quest' | 'relic';
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   description: string;
   effect?: string;
@@ -308,6 +308,7 @@ export interface ShopItem {
   targetClass?: 'fighter' | 'rogue' | 'wizard' | 'cleric' | 'all';
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   icon: string;
+  voucherCostId?: string;
   weaponUpgrade?: WeaponAttack;
   statBonus?: {
     ac?: number;
@@ -315,6 +316,21 @@ export interface ShopItem {
     speed?: number;
   };
   consumableItem?: InventoryItem;
+}
+
+export interface WarningSteleInstance {
+  coordinate: GridCoordinate;
+  title: string;
+  message: string;
+  isRead?: boolean;
+}
+
+export interface RestPointInstance {
+  id: string;
+  coordinate: GridCoordinate;
+  name: string;
+  isUsed: boolean;
+  hpRestore: number;
 }
 
 export interface RoomDataBlock {
@@ -334,6 +350,9 @@ export interface RoomDataBlock {
   prisonCells?: PrisonCellInstance[];
   isTreasureChamber?: boolean;
   treasureHoard?: TreasureHoardInstance;
+  warningStele?: WarningSteleInstance;
+  restPoint?: RestPointInstance;
+  interactableObjects?: Array<{ id: string; type: 'stele' | 'rest_point' | string; name: string; coordinate: GridCoordinate; isUsed: boolean; description?: string; }>;
   isExplored: boolean;
   flavorText: string;
   isBossRoom: boolean;
@@ -344,12 +363,19 @@ export interface RoomDataBlock {
 
 export interface ModulePackage {
   id: string;
-  moduleNumber: 1 | 2 | 3;
+  moduleNumber: 1 | 2 | 3 | 4 | number;
   title: string;
   subtitle: string;
   tierDescription: string;
   recommendedLevel: string;
   description: string;
+  isSoloOnly?: boolean;
+  completionRewards?: {
+    voucherId?: string;
+    voucherName?: string;
+    gold?: number;
+    unlocksShopItem?: string;
+  };
   rooms: RoomDataBlock[];
   lootTable: InventoryItem[];
   environmentalSummary: {
@@ -408,7 +434,7 @@ export interface InitiativeMember {
 }
 
 export interface NearbyInteractable {
-  type: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard';
+  type: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard' | 'stele' | 'rest_point';
   label: string;
   id?: string;
   cellNumber?: number;
@@ -467,6 +493,10 @@ export interface GameEngineState {
     goldEarned: number;
     prisonersRescued: number;
   };
+  isSoloExpedition?: boolean;
+  expeditionStartingGold?: number;
+  expeditionLootCollected?: InventoryItem[];
+  issuedVouchers?: any[];
   isGameOver: boolean;
   isVictory: boolean;
   bossDefeated?: boolean;

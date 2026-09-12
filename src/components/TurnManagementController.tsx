@@ -26,7 +26,7 @@ interface TurnManagementControllerProps {
   onSkipInteract: () => void;
   onPassTurn: () => void;
   onExecuteAttack: (monsterId: string, weaponIndex: number) => void;
-  onExecuteInteract: (type: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard', id?: string) => void;
+  onExecuteInteract: (type: 'chest' | 'trap' | 'pillar' | 'potion' | 'door' | 'cell' | 'treasure_hoard' | 'stele' | 'rest_point', id?: string) => void;
   onDismissNotice: () => void;
 }
 

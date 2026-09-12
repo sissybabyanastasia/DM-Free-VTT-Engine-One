@@ -1519,8 +1519,432 @@ export const MODULE_3_EPIC_EXPANSION: ModulePackage = {
   }
 };
 
+// -------------------------------------------------------------
+// MODULE 4: SOLO-ONLY CRUCIBLE OF THE RED CONQUEROR
+// -------------------------------------------------------------
+// Structure:
+// Room 1: The Stele of Ultimatum (Entrance Hall - Safe Zone with Death=Zero Returns warning stele)
+// Room 2: The Vault of Temptation (Treasure Room - High reward chest guarded by DC 12/13 trap)
+// Room 3: The Crimson Gauntlet (Monster Corridor - 2 Chase-type foes testing resource management)
+// Room 4: The Hall of Fractured Ruin (Trap Room - Crumbling floor hazard + spring-spike trap with perception hints)
+// Room 5: The Sanctuary of Respite (Rest Point - Limited single Short Rest recovering 14 HP & ability cooldowns)
+// Room 6: The Throne of Conquest (Boss Room - General Vaelok 2-Phase encounter with Blood Obelisks Aegis & Blood-Rage)
+
+export const MODULE_4_ROOMS: RoomDataBlock[] = [
+  {
+    id: 'm4_room_1',
+    roomIndex: 1,
+    title: 'The Stele of Ultimatum',
+    theme: 'Volcanic Obsidian Antechamber',
+    origin: { x: 0, y: 0 },
+    width: 6,
+    height: 6,
+    tiles: generateRoomTiles('m4_room_1', 0, 0, 6, 6, [{ x: 5, y: 3 }]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m4_r1_to_r2',
+        type: 'edge_coordinate',
+        coordinate: { x: 5, y: 3 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 2,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'Reinforced iron archway leads toward the Vault of Temptation...'
+      }
+    ],
+    monsters: [],
+    hazards: [],
+    traps: [],
+    chests: [],
+    warningStele: {
+      coordinate: { x: 2, y: 2 },
+      title: 'The Stele of Ultimatum',
+      message: 'WARNING TO THE SOLO CHALLENGER: Death = zero returns. All spoils gathered during this trial are held in escrow and forfeit upon death. Only conquering General Vaelok at the heart of the Crucible settles your expedition loot and issues the official Voucher for the Robe of Conquest-Red.'
+    },
+    isExplored: true,
+    flavorText: 'An ominous volcanic stone stele stands before the iron gates, inscribed with blood-red runes of ultimatum: "Death Means Zero Returns".',
+    isBossRoom: false
+  },
+  {
+    id: 'm4_room_2',
+    roomIndex: 2,
+    title: 'The Vault of Temptation',
+    theme: 'Trapped Treasure Grotto',
+    origin: { x: 6, y: 0 },
+    width: 7,
+    height: 6,
+    tiles: generateRoomTiles('m4_room_2', 6, 0, 7, 6, [{ x: 12, y: 3 }]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m4_r2_to_r3',
+        type: 'edge_coordinate',
+        coordinate: { x: 12, y: 3 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 3,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'A blood-spattered corridor stretches eastward into darkness...'
+      }
+    ],
+    monsters: [],
+    hazards: [],
+    traps: [
+      {
+        id: 'trap_m4_vault_spike',
+        type: 'spike_pit',
+        name: 'Concealed Barbed Pit',
+        coordinate: { x: 9, y: 2 },
+        roomId: 'm4_room_2',
+        isDetected: false,
+        isDisarmed: false,
+        isTriggered: false,
+        perceptionDC: 12,
+        disarmDC: 13,
+        damageDice: '2d6',
+        damageType: 'piercing',
+        savingThrowDC: 13,
+        saveAttribute: 'dex',
+        description: 'Concealed spring-loaded floor spikes guarding the treasure coffer.'
+      }
+    ],
+    chests: [
+      {
+        id: 'chest_m4_vault',
+        coordinate: { x: 10, y: 2 },
+        isOpened: false,
+        isLocked: true,
+        unlockDC: 13,
+        goldReward: 80,
+        loot: [
+          {
+            id: 'pot_greater_solo',
+            name: 'Potion of Greater Healing',
+            type: 'consumable',
+            rarity: 'rare',
+            description: 'Restores 4d4+4 Hit Points when consumed as an interact action.',
+            effect: 'heal_4d4_4',
+            quantity: 1
+          },
+          {
+            id: 'elixir_haste_solo',
+            name: 'Elixir of Swift Haste',
+            type: 'consumable',
+            rarity: 'common',
+            description: 'Quaff as an interact action to immediately restore 6 squares of movement.',
+            quantity: 1
+          }
+        ]
+      }
+    ],
+    isExplored: false,
+    flavorText: 'An ornate brass-bound coffer sits enticingly on a raised pedestal. Treacherous scratch marks indicate concealed floor triggers.',
+    isBossRoom: false
+  },
+  {
+    id: 'm4_room_3',
+    roomIndex: 3,
+    title: 'The Crimson Gauntlet',
+    theme: 'Bloodhound Corridor',
+    origin: { x: 13, y: 0 },
+    width: 8,
+    height: 5,
+    tiles: generateRoomTiles('m4_room_3', 13, 0, 8, 5, [{ x: 20, y: 2 }]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m4_r3_to_r4',
+        type: 'edge_coordinate',
+        coordinate: { x: 20, y: 2 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 4,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'A cracked stone archway leads into a chamber of decaying floors...'
+      }
+    ],
+    monsters: [
+      {
+        id: 'm4_hound_1',
+        templateId: 'dire_hound',
+        name: 'Crucible Bloodhound',
+        monsterType: 'hound',
+        tier: 1,
+        hp: 14,
+        maxHp: 14,
+        ac: 12,
+        speed: 6,
+        position: { x: 16, y: 1 },
+        isAlive: true,
+        isBoss: false,
+        ai: {
+          behaviorType: 'chase',
+          targetingRule: 'nearest',
+          preferredRange: 1,
+          actions: [
+            { triggerCondition: 'always', actionType: 'move', moveDistance: 6 },
+            { triggerCondition: 'in_attack_range', actionType: 'attack', attackRange: 1, damageDice: '1d6+2', hitBonus: 4 }
+          ]
+        },
+        attacks: [
+          { id: 'atk_m4_bite', name: 'Rabid Bite', range: 1, attackBonus: 4, damageDice: '1d6+2', damageType: 'piercing', description: 'Vicious snapping jaws.' }
+        ],
+        specialAbilities: ['Relentless Scent'],
+        statusEffects: [],
+        threatLevel: 1,
+        experienceReward: 90
+      },
+      {
+        id: 'm4_marauder_1',
+        templateId: 'hobgoblin_warrior',
+        name: 'Crimson Marauder',
+        monsterType: 'goblin',
+        tier: 1,
+        hp: 16,
+        maxHp: 16,
+        ac: 13,
+        speed: 5,
+        position: { x: 18, y: 3 },
+        isAlive: true,
+        isBoss: false,
+        ai: {
+          behaviorType: 'chase',
+          targetingRule: 'nearest',
+          preferredRange: 1,
+          actions: [
+            { triggerCondition: 'always', actionType: 'move', moveDistance: 5 },
+            { triggerCondition: 'in_attack_range', actionType: 'attack', attackRange: 1, damageDice: '1d8+2', hitBonus: 4 }
+          ]
+        },
+        attacks: [
+          { id: 'atk_m4_halberd', name: 'Crucible Halberd', range: 1, attackBonus: 4, damageDice: '1d8+2', damageType: 'slashing', description: 'Heavy bladed polearm.' }
+        ],
+        specialAbilities: ['Tactical Strike'],
+        statusEffects: [],
+        threatLevel: 2,
+        experienceReward: 110
+      }
+    ],
+    hazards: [],
+    traps: [],
+    chests: [],
+    isExplored: false,
+    flavorText: 'Snarls echo down the basalt corridor as leashed war-hounds and watchful crimson sentinels rush to intercept you.',
+    isBossRoom: false
+  },
+  {
+    id: 'm4_room_4',
+    roomIndex: 4,
+    title: 'The Hall of Fractured Ruin',
+    theme: 'Hazard & Trap Labyrinth',
+    origin: { x: 21, y: 0 },
+    width: 7,
+    height: 6,
+    tiles: generateRoomTiles('m4_room_4', 21, 0, 7, 6, [{ x: 27, y: 3 }]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m4_r4_to_r5',
+        type: 'edge_coordinate',
+        coordinate: { x: 27, y: 3 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 5,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'A warm golden glow emanates from a quiet chamber ahead...'
+      }
+    ],
+    monsters: [],
+    hazards: [
+      {
+        id: 'm4_hazard_crumble_1',
+        type: 'crumbling_floor',
+        name: 'Fractured Basalt Slab',
+        coordinate: { x: 24, y: 2 },
+        roomId: 'm4_room_4',
+        currentIntegrity: 2,
+        maxIntegrity: 2,
+        state: 'stable',
+        damageOnTrigger: '1d6',
+        damageType: 'bludgeoning',
+        savingThrowDC: 12,
+        saveAttribute: 'dex',
+        description: 'Thin basalt rock shelf hanging over a spiked abyss. Collapses under repeated weight.'
+      }
+    ],
+    traps: [
+      {
+        id: 'm4_trap_spikes_1',
+        type: 'spike_pit',
+        name: 'Tripwire Spring-Spikes',
+        coordinate: { x: 25, y: 4 },
+        roomId: 'm4_room_4',
+        isDetected: false,
+        isDisarmed: false,
+        isTriggered: false,
+        perceptionDC: 12,
+        disarmDC: 13,
+        damageDice: '2d6',
+        damageType: 'piercing',
+        savingThrowDC: 13,
+        saveAttribute: 'dex',
+        description: 'Concealed tension cable tripping upward-thrusting steel spikes.'
+      }
+    ],
+    chests: [],
+    isExplored: false,
+    flavorText: 'Spiderweb fissures cross the damp stones. Keen observation reveals faint tripwires and brittle flagstones before stepping blindly.',
+    isBossRoom: false
+  },
+  {
+    id: 'm4_room_5',
+    roomIndex: 5,
+    title: 'The Sanctuary of Respite',
+    theme: 'Hearth of the Champion',
+    origin: { x: 28, y: 0 },
+    width: 6,
+    height: 6,
+    tiles: generateRoomTiles('m4_room_5', 28, 0, 6, 6, [{ x: 33, y: 3 }]),
+    edgeCoordinates: [
+      {
+        id: 'edge_m4_r5_to_r6',
+        type: 'edge_coordinate',
+        coordinate: { x: 33, y: 3 },
+        connectsToDirection: 'east',
+        targetRoomIndex: 6,
+        isTriggered: false,
+        spawnRule: 'spawns_on_occupy',
+        leadText: 'Massive iron doors forged with warlord crests lead to the Conqueror\'s Throne...'
+      }
+    ],
+    monsters: [],
+    hazards: [],
+    traps: [],
+    chests: [],
+    restPoint: {
+      id: 'm4_rest_shrine',
+      coordinate: { x: 30, y: 2 },
+      name: 'Shrine of the Resolute Heart',
+      isUsed: false,
+      hpRestore: 14
+    },
+    isExplored: false,
+    flavorText: 'A sacred warm brazier burns here, offering a single Short Rest opportunity to restore +14 HP and recharge all abilities before the final battle.',
+    isBossRoom: false
+  },
+  {
+    id: 'm4_room_6',
+    roomIndex: 6,
+    title: 'The Throne of the Red Conqueror',
+    theme: 'Crimson Amphitheater',
+    origin: { x: 34, y: 0 },
+    width: 8,
+    height: 8,
+    tiles: generateRoomTiles('m4_room_6', 34, 0, 8, 8, []),
+    edgeCoordinates: [],
+    hazards: [],
+    traps: [],
+    chests: [],
+    isExplored: false,
+    isBossRoom: true,
+    bossEncounter: {
+      bossMonsterId: 'boss_vaelok',
+      bossName: 'General Vaelok, The Red Conqueror',
+      title: 'The Crimson Duel of Conquest',
+      currentPhase: 1,
+      totalPhases: 2,
+      defeatCondition: 'deactivate_pillars_then_kill',
+      pillarsToDeactivate: [
+        { coordinate: { x: 37, y: 2 }, isDeactivated: false },
+        { coordinate: { x: 37, y: 5 }, isDeactivated: false }
+      ],
+      phaseMechanics: [
+        {
+          phaseNumber: 1,
+          hpThresholdPercentage: 100,
+          mechanicName: 'Phase 1: Crimson Obelisk Aegis',
+          description: 'Vaelok channels the twin Blood Obelisks! The Crimson Aegis deflects all incoming attacks until both obelisks are shattered via hero Interact action!'
+        },
+        {
+          phaseNumber: 2,
+          hpThresholdPercentage: 50,
+          mechanicName: 'Phase 2: Blazing Blood-Rage',
+          description: 'Below 50% HP, Vaelok hurls away his shield in fury! Attacks gain +1d6 fire damage, AC shifts to 13, and speed increases to 6!'
+        }
+      ]
+    },
+    monsters: [
+      {
+        id: 'boss_vaelok',
+        templateId: 'conqueror_warlord',
+        name: 'General Vaelok, The Red Conqueror',
+        monsterType: 'hobgoblin',
+        tier: 2,
+        hp: 38,
+        maxHp: 38,
+        ac: 14,
+        speed: 5,
+        position: { x: 39, y: 3 },
+        isAlive: true,
+        isBoss: true,
+        ai: {
+          behaviorType: 'boss_phased',
+          targetingRule: 'nearest',
+          preferredRange: 1,
+          actions: [
+            { triggerCondition: 'always', actionType: 'move', moveDistance: 5 },
+            { triggerCondition: 'in_attack_range', actionType: 'attack', attackRange: 1, damageDice: '1d8+3', hitBonus: 5 }
+          ]
+        },
+        attacks: [
+          { id: 'atk_vaelok_glaive', name: "Conqueror's Glaive", range: 1, attackBonus: 5, damageDice: '1d8+3', damageType: 'slashing', description: 'Heavy blood-etched war glaive.' },
+          { id: 'atk_vaelok_cleave', name: 'Crimson Cleave', range: 1, attackBonus: 5, damageDice: '1d8+1d6+3', damageType: 'fire', description: 'Enraged sweeping strike engulfed in searing embers.' }
+        ],
+        specialAbilities: ['Crimson Aegis', 'Blood-Rage Enrage'],
+        statusEffects: [],
+        threatLevel: 4,
+        experienceReward: 450
+      }
+    ],
+    flavorText: 'Crimson war banners hang from obsidian pillars. General Vaelok stands ready on the amphitheater dais, surrounded by protective bloodstone obelisks.'
+  }
+];
+
+export const MODULE_4_SOLO_CRUCIBLE: ModulePackage = {
+  id: 'module_4_solo_crucible',
+  moduleNumber: 4,
+  title: 'Module 4: Crucible of the Red Conqueror',
+  subtitle: 'Solo Trial of Endurance, Lethal Hazards & Phased Combat',
+  tierDescription: 'High-Risk Solo Module (Level 2-3 Champion)',
+  recommendedLevel: 'Solo Hero (Level 2-3)',
+  description: 'A punishing solo-only gauntlet designed with narrow error margins. Death forfeits all expedition loot; clearance issues the official Voucher for the Robe of Conquest-Red (+10% damage).',
+  isSoloOnly: true,
+  completionRewards: {
+    voucherId: 'voucher_robe_of_conquest_red',
+    voucherName: 'Voucher: Robe of Conquest-Red',
+    gold: 350
+  },
+  rooms: MODULE_4_ROOMS,
+  lootTable: [
+    {
+      id: 'voucher_robe_of_conquest_red',
+      name: 'Voucher: Robe of Conquest-Red',
+      type: 'relic',
+      rarity: 'legendary',
+      description: 'Official settlement voucher issued by the Guild upon clearing the Solo Crucible. Redeem at the Town Shop for the Robe of Conquest-Red.',
+      quantity: 1
+    }
+  ],
+  environmentalSummary: {
+    hazardName: 'Fractured Basalt Pitfall',
+    hazardRule: 'Cracked floor collapses on 2nd step into a 10ft spiked pit (1d6 bludgeoning, DC 12 DEX save or Prone).',
+    trapName: 'Concealed Barbed Spikes & Tripwires',
+    trapRule: 'Hidden pressure tiles trigger razor spikes dealing 2d6 piercing damage (DC 13 DEX save, DC 12 Perception to detect, DC 13 Thievery to disarm).',
+    bossMechanicName: 'Two-Phase Obelisk Shield & Crimson Blood-Rage',
+    bossMechanicRule: 'Phase 1: Blood Obelisks deflect all damage until deactivated via Interact. Phase 2: Below 50% HP, enters Blood-Rage dealing +1d6 fire damage.'
+  }
+};
+
 export const ALL_MODULES = [
   MODULE_1_CORE_SET,
   MODULE_2_ADVANCED_SET,
-  MODULE_3_EPIC_EXPANSION
+  MODULE_3_EPIC_EXPANSION,
+  MODULE_4_SOLO_CRUCIBLE
 ];
