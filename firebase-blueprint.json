@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user profile in the system.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "A saved game session metadata.",
+      "type": "object",
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "updatedAt": { "type": "string" },
+            "moduleTitle": { "type": "string" }
+          },
+          "required": ["id", "name", "updatedAt", "moduleTitle"]
+        },
+        "state": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["metadata", "state", "updatedAt"]
+    },
+    "Lobby": {
+      "title": "Lobby",
+      "description": "A multiplayer game lobby.",
+      "type": "object",
+      "properties": {
+        "hostId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "moduleId": { "type": "string" },
+        "status": { "type": "string", "enum": ["waiting", "playing"] },
+        "players": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "uid": { "type": "string" },
+              "email": { "type": "string" }
+            },
+            "required": ["uid", "email"]
+          }
+        },
+        "playerIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "gameState": {
+          "type": ["object", "null"]
+        },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["hostId", "name", "moduleId", "status", "players", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "users/{userId}/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/Session" },
+      "description": "User saved sessions"
+    },
+    "lobbies/{lobbyId}": {
+      "schema": { "$ref": "#/entities/Lobby" },
+      "description": "Multiplayer game lobbies"
+    }
+  }
+}

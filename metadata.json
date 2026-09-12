@@ -1,0 +1,6 @@
+{
+  "name": "DM-Free D&D Tabletop Engine",
+  "description": "Grid-based cooperative tabletop engine with central map viewing, dynamic dungeon scenarios (prison rescue, treasure vaults), campaign gold shop progression, algorithmic AI, and formal JSON schema.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
