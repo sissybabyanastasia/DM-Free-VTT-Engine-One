@@ -348,12 +348,13 @@ export const DMFREE_DD_ENGINE_SCHEMA = {
     },
     "module_expansion_definition": {
       "type": "object",
-      "description": "Tiered campaign content packages enabling core, advanced, and epic progression.",
-      "required": ["module_1_core", "module_2_advanced", "module_3_epic"],
+      "description": "Tiered campaign content packages enabling core, advanced, epic, and solo crucible progression.",
+      "required": ["module_1_core", "module_2_advanced", "module_3_epic", "module_4_crucible"],
       "properties": {
         "module_1_core": { "type": "object" },
         "module_2_advanced": { "type": "object" },
-        "module_3_epic": { "type": "object" }
+        "module_3_epic": { "type": "object" },
+        "module_4_crucible": { "type": "object" }
       }
     }
   }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DMFREE_DD_ENGINE_SCHEMA } from '../data/jsonSchema';
-import { MODULE_1_CORE_SET, MODULE_2_ADVANCED_SET, MODULE_3_EPIC_EXPANSION } from '../data/modulesData';
-import { X, Copy, Download, Check, Code, FileJson, Layers, ShieldCheck } from 'lucide-react';
+import { MODULE_1_CORE_SET, MODULE_2_ADVANCED_SET, MODULE_3_EPIC_EXPANSION, MODULE_4_SOLO_CRUCIBLE } from '../data/modulesData';
+import { X, Copy, Download, Check, Code, FileJson, Layers, ShieldCheck, Flame } from 'lucide-react';
 
 interface SchemaInspectorModalProps {
   isOpen: boolean;
@@ -9,7 +9,7 @@ interface SchemaInspectorModalProps {
 }
 
 export const SchemaInspectorModal: React.FC<SchemaInspectorModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'schema' | 'mod1' | 'mod2' | 'mod3' | 'overview'>('schema');
+  const [activeTab, setActiveTab] = useState<'schema' | 'mod1' | 'mod2' | 'mod3' | 'mod4' | 'overview'>('schema');
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -29,6 +29,9 @@ export const SchemaInspectorModal: React.FC<SchemaInspectorModalProps> = ({ isOp
   } else if (activeTab === 'mod3') {
     activeData = MODULE_3_EPIC_EXPANSION;
     filename = 'module-3-epic-expansion.json';
+  } else if (activeTab === 'mod4') {
+    activeData = MODULE_4_SOLO_CRUCIBLE;
+    filename = 'module-4-solo-crucible.json';
   }
 
   const jsonString = JSON.stringify(activeData, null, 2);
@@ -148,6 +151,16 @@ export const SchemaInspectorModal: React.FC<SchemaInspectorModalProps> = ({ isOp
           >
             <Layers className="w-4 h-4" />
             <span>Module 3 (Epic + Arch-Lich)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('mod4')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+              activeTab === 'mod4' ? 'bg-red-500/20 text-red-300 font-bold border border-red-500/30' : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Flame className="w-4 h-4 text-red-400" />
+            <span>Module 4 (Solo Crucible)</span>
           </button>
         </div>
 
